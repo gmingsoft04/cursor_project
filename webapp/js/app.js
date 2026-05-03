@@ -5,6 +5,7 @@
   const panels = {
     keywords: document.getElementById("panel-keywords"),
     platforms: document.getElementById("panel-platforms"),
+    api: document.getElementById("panel-api"),
     crm: document.getElementById("panel-crm"),
     templates: document.getElementById("panel-templates"),
     ai: document.getElementById("panel-ai"),

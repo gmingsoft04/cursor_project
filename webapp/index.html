@@ -19,9 +19,11 @@
     <nav class="tabs" id="tabs">
       <button class="tab active" data-tab="keywords">🔍 搜索关键词</button>
       <button class="tab" data-tab="platforms">🌐 目标平台</button>
+      <button class="tab" data-tab="api">🔌 API 查询</button>
       <button class="tab" data-tab="crm">📇 客户追踪</button>
       <button class="tab" data-tab="templates">✉️ 开发信模板</button>
       <button class="tab" data-tab="ai">🤖 AI 生成客户</button>
+      <button class="tab settings-tab" id="open-settings" title="API 设置">⚙️ 设置</button>
     </nav>
   </header>
 
@@ -62,6 +64,134 @@
           <li><strong>LinkedIn</strong> 搜 <code>phone accessories buyer USA</code> / <code>purchasing manager mobile accessories</code>，逐一加好友（约 ~20 个）。</li>
           <li>所有结果导入 <a href="#" data-jump="crm">客户追踪</a> 模块统一跟进。</li>
         </ol>
+      </div>
+    </section>
+
+    <!-- ========== 模块 6：API 查询（Hunter + Apollo） ========== -->
+    <section class="panel hidden" id="panel-api">
+      <div class="panel-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+        <div>
+          <h2>API 查询 · Hunter.io + Apollo.io</h2>
+          <p>在「⚙️ 设置」中填入 API key 即可使用。结果可一键加入客户追踪。</p>
+        </div>
+        <div id="api-status" class="api-status"></div>
+      </div>
+
+      <div class="api-tabs">
+        <button class="api-tab active" data-api="hunter">Hunter.io</button>
+        <button class="api-tab" data-api="apollo">Apollo.io</button>
+      </div>
+
+      <!-- ========== Hunter ========== -->
+      <div class="api-pane" id="api-pane-hunter">
+        <div class="api-modes">
+          <label><input type="radio" name="hunter-mode" value="domain-search" checked /> 域名查邮箱（Domain Search）</label>
+          <label><input type="radio" name="hunter-mode" value="email-finder" /> 姓名找邮箱（Email Finder）</label>
+          <label><input type="radio" name="hunter-mode" value="email-verifier" /> 邮箱验证（Email Verifier）</label>
+          <label><input type="radio" name="hunter-mode" value="account" /> 配额查询（Account）</label>
+        </div>
+
+        <div class="api-form" id="hunter-form-domain">
+          <label>公司域名 *<input id="h-domain" placeholder="acme.com" /></label>
+          <label>仅这种类型
+            <select id="h-type">
+              <option value="">全部</option>
+              <option value="generic">业务邮箱（info@/sales@）</option>
+              <option value="personal">个人邮箱（first.last@）</option>
+            </select>
+          </label>
+          <label>部门
+            <select id="h-department">
+              <option value="">全部</option>
+              <option>executive</option><option>it</option><option>finance</option>
+              <option>management</option><option>sales</option><option>legal</option>
+              <option>support</option><option>hr</option><option>marketing</option>
+              <option>communication</option><option>education</option><option>design</option>
+              <option>health</option>
+            </select>
+          </label>
+          <label>条数
+            <input id="h-limit" type="number" value="25" min="1" max="100" />
+          </label>
+        </div>
+
+        <div class="api-form hidden" id="hunter-form-finder">
+          <label>公司域名 *<input id="hf-domain" placeholder="acme.com" /></label>
+          <label>名 (first_name)<input id="hf-first" placeholder="John" /></label>
+          <label>姓 (last_name)<input id="hf-last" placeholder="Smith" /></label>
+        </div>
+
+        <div class="api-form hidden" id="hunter-form-verify">
+          <label class="full">邮箱 *<input id="hv-email" placeholder="john@acme.com" /></label>
+        </div>
+
+        <div class="api-actions">
+          <button class="btn primary" id="hunter-run">查询</button>
+          <button class="btn" id="hunter-add-all" disabled>+ 全部加入客户追踪</button>
+          <span class="api-meter" id="hunter-meter"></span>
+        </div>
+
+        <div class="table-wrap">
+          <table class="crm-table">
+            <thead id="hunter-thead"></thead>
+            <tbody id="hunter-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== Apollo ========== -->
+      <div class="api-pane hidden" id="api-pane-apollo">
+        <div class="callout" style="margin-bottom:16px;">
+          <strong>需要本地代理：</strong>Apollo API 不允许浏览器直接调用（CORS）。请运行
+          <code>node proxy/server.js</code> 启动本地零依赖代理（在仓库 <code>proxy/</code> 目录），
+          代理会把请求转发到 Apollo 并附上你的 API key（从设置中读取，不入日志）。
+        </div>
+        <div class="api-form">
+          <label>关键词 (q_keywords)<input id="ap-keywords" placeholder="phone accessories" /></label>
+          <label>头衔 (person_titles, 多个用逗号)
+            <input id="ap-titles" placeholder="buyer, purchasing manager, sourcing" />
+          </label>
+          <label>国家 (person_locations)
+            <input id="ap-locations" placeholder="United States, Germany" />
+          </label>
+          <label>公司行业关键词
+            <input id="ap-industry" placeholder="consumer electronics" />
+          </label>
+          <label>公司规模 (employees)
+            <select id="ap-size">
+              <option value="">全部</option>
+              <option value="1,10">1–10</option>
+              <option value="11,50">11–50</option>
+              <option value="51,200">51–200</option>
+              <option value="201,500">201–500</option>
+              <option value="501,1000">501–1000</option>
+              <option value="1001,5000">1001–5000</option>
+            </select>
+          </label>
+          <label>每页 (per_page)
+            <input id="ap-perpage" type="number" value="25" min="1" max="100" />
+          </label>
+          <label>页码 (page)
+            <input id="ap-page" type="number" value="1" min="1" />
+          </label>
+          <label>是否解锁邮箱
+            <select id="ap-reveal">
+              <option value="false">否（不消耗 credit）</option>
+              <option value="true">是（消耗 credit）</option>
+            </select>
+          </label>
+        </div>
+        <div class="api-actions">
+          <button class="btn primary" id="apollo-run">查询</button>
+          <button class="btn" id="apollo-add-all" disabled>+ 全部加入客户追踪</button>
+          <span class="api-meter" id="apollo-meter"></span>
+        </div>
+        <div class="table-wrap">
+          <table class="crm-table">
+            <thead id="apollo-thead"></thead>
+            <tbody id="apollo-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -218,6 +348,37 @@
 
   </main>
 
+  <!-- 设置弹窗 -->
+  <div class="modal hidden" id="settings-modal">
+    <div class="modal-box">
+      <h3>API 设置</h3>
+      <p style="color:var(--muted);font-size:13px;margin-top:0;">
+        所有 key 仅保存在浏览器 localStorage，不上传到任何服务器。<br/>
+        Hunter 直连官方 API，Apollo 经本地代理转发。
+      </p>
+      <div class="form-grid">
+        <label class="full">
+          Hunter.io API Key
+          <input id="s-hunter-key" type="password" autocomplete="off" placeholder="申请：https://hunter.io/api_keys" />
+        </label>
+        <label class="full">
+          Apollo.io API Key
+          <input id="s-apollo-key" type="password" autocomplete="off" placeholder="申请：https://app.apollo.io/#/settings/integrations/api" />
+        </label>
+        <label class="full">
+          Apollo 代理地址
+          <input id="s-apollo-proxy" placeholder="http://127.0.0.1:8787" />
+          <small style="color:var(--muted);">运行 <code>node proxy/server.js</code> 后通常是 <code>http://127.0.0.1:8787</code></small>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="s-cancel">取消</button>
+        <button class="btn danger ghost" id="s-clear">清空</button>
+        <button class="btn primary" id="s-save">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 客户编辑弹窗 -->
   <div class="modal hidden" id="modal">
     <div class="modal-box">
@@ -270,6 +431,10 @@
   <script src="js/crm.js"></script>
   <script src="js/templates.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/api-hunter.js"></script>
+  <script src="js/api-apollo.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

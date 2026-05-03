@@ -33,7 +33,17 @@ GaN 充电器 / USB-C 数据线批发商打造，覆盖找客户从"关键词→
 - 实时预览，所有发件人信息自动持久化
 - 含 CAN-SPAM / GDPR 合规要求的"来源说明 + 退订选项"
 
-### 5. 🤖 AI 生成客户开发策略
+### 5. 🔌 API 查询（Hunter.io + Apollo.io）
+- **Hunter**（浏览器直连）— 4 种模式：
+  - **Domain Search**：输入公司域名 → 列出该域所有公开邮箱（可按 generic/personal、按部门过滤）
+  - **Email Finder**：输入域名 + 名 + 姓 → 推断单个邮箱并给出置信度
+  - **Email Verifier**：邮箱送达性校验（result / score / SMTP / MX）
+  - **Account**：剩余配额查询
+- **Apollo**（经本地零依赖代理）— Mixed People Search：按关键词 + 头衔 + 国家 + 行业 + 公司规模搜索决策人，可选解锁邮箱
+- 结果支持**单条加入**或**全部加入**客户追踪 CRM
+- API key 仅保存在 `localStorage`，不上传任何服务器（点击右上角 ⚙️ 设置）
+
+### 6. 🤖 AI 生成客户开发策略
 - 输入：目标国家 × 客户类型 × 订单规模
 - 输出：买家画像 / 必备认证 / 付款方式 / 主流热销 SKU
   + 推荐平台组合 + 推荐关键词 + **4 周行动计划**
@@ -42,13 +52,24 @@ GaN 充电器 / USB-C 数据线批发商打造，覆盖找客户从"关键词→
 ## 快速开始
 
 ```bash
-# 任意静态服务器都可以
+# 1. 启动静态服务器（前端）
 cd webapp
 python3 -m http.server 8000
 # 浏览器打开 http://127.0.0.1:8000
+
+# 2. （可选）启动 Apollo 代理 — 仅当你要用 Apollo API 时需要
+cd ..
+node proxy/server.js
+# 默认监听 http://127.0.0.1:8787
 ```
 
-或直接双击 `webapp/index.html` 用 file:// 协议打开（剪贴板复制可能受限于浏览器安全策略，建议用 http 服务器）。
+打开浏览器后点右上角 **⚙️ 设置**，填入：
+
+- **Hunter.io API key**（在 https://hunter.io/api_keys 申请）
+- **Apollo.io API key**（在 https://app.apollo.io/#/settings/integrations/api 申请）
+- **Apollo 代理地址**：`http://127.0.0.1:8787`（默认）
+
+key 和地址全部保存在浏览器 localStorage，**不会**上传到任何服务器。
 
 ## 与 Python 工具配合使用
 
@@ -89,12 +110,20 @@ webapp/
 │   └── styles.css
 ├── js/
 │   ├── data.js          # 关键词 / 平台 / AI 知识库（静态数据）
-│   ├── keywords.js      # 模块 1
-│   ├── platforms.js     # 模块 2
-│   ├── crm.js           # 模块 3
-│   ├── templates.js     # 模块 4
-│   ├── ai.js            # 模块 5
+│   ├── keywords.js      # 模块 1：搜索关键词
+│   ├── platforms.js     # 模块 2：目标平台
+│   ├── crm.js           # 模块 3：客户追踪
+│   ├── templates.js     # 模块 4：开发信模板
+│   ├── ai.js            # 模块 5：AI 客户生成
+│   ├── settings.js      # API key 设置（localStorage）
+│   ├── api-hunter.js    # Hunter API 封装
+│   ├── api-apollo.js    # Apollo API 封装（走代理）
+│   ├── api.js           # 模块 6：API 查询 UI
 │   └── app.js           # Tab 切换 + toast
+└── README.md
+
+proxy/
+├── server.js            # Apollo API 本地代理（零依赖 Node）
 └── README.md
 ```
 

@@ -280,6 +280,66 @@ body {
 .ai-week h4 { margin: 0 0 4px 0; font-size: 14px; }
 .ai-week p { margin: 0; font-size: 13.5px; color: #334155; }
 
+/* ============ API Panel ============ */
+.settings-tab { margin-left: auto; }
+.api-status {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  font-size: 12px;
+}
+.api-status .chip {
+  background: var(--panel-2); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.api-status .chip.ok { background: #dcfce7; border-color: #86efac; color: #166534; }
+.api-status .chip.miss { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.api-status .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+.api-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.api-tab {
+  background: transparent; border: none; padding: 10px 18px;
+  border-bottom: 2px solid transparent; cursor: pointer;
+  font-size: 14px; color: var(--muted); font-weight: 500;
+}
+.api-tab.active { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+
+.api-modes {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  padding: 12px 14px; margin-bottom: 12px;
+  background: var(--panel-2); border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.api-modes label {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; color: var(--text); cursor: pointer;
+}
+.api-modes input[type="radio"] { accent-color: var(--primary); }
+
+.api-form {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 14px;
+}
+.api-form.hidden { display: none; }
+.api-form label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 12px; color: var(--muted); font-weight: 600;
+}
+.api-form label.full { grid-column: 1 / -1; }
+.api-form input, .api-form select {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13.5px; font-family: inherit;
+}
+
+.api-actions {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  margin: 4px 0 16px 0;
+}
+.api-meter {
+  font-size: 12px; color: var(--muted);
+  margin-left: auto;
+}
+
 /* ============ Buttons ============ */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;
