@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+output/
+*.csv
+.DS_Store
+.idea/
+.vscode/
+node_modules/
