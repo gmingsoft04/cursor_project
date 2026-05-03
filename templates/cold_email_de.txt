@@ -1,0 +1,28 @@
+Betreff: {sender_company} — GaN-Schnellladegeräte & USB-C-Kabel direkt vom Hersteller
+
+Sehr geehrte Damen und Herren,
+
+mein Name ist {sender_name} von {sender_company}, einem Hersteller aus
+Shenzhen für GaN-Schnellladegeräte (20–140 W) und USB-C-/Lightning-
+Kabel (USB-IF / MFi auf Wunsch). Wir beliefern Importeure und
+Fachhändler in der EU mit Private-Label- und OEM-Lösungen.
+
+Kurzüberblick:
+  • PD 3.0 / PPS, GaN III, Multi-Port (1C / 2C1A / 3C1A …)
+  • Zertifikate: CE, UKCA, RoHS, REACH, DoE VI; MFi optional
+  • MOQ ab 500 Stück, 25 Tage Lieferzeit, FOB Shenzhen oder DDP EU
+  • Kostenlose Muster für geprüfte Geschäftskunden
+
+Falls das für Ihr Sortiment relevant ist, sende ich Ihnen gern unseren
+PDF-Katalog und ein Musterangebot. Sollten Sie nicht die richtige
+Ansprechperson sein, freue ich mich über eine kurze Weiterleitung.
+
+Sie erhalten diese Nachricht im Rahmen eines berechtigten B2B-
+Interesses (Art. 6 Abs. 1 lit. f DSGVO). Eine kurze Antwort mit
+"abmelden" genügt, um Sie aus dem Verteiler zu entfernen.
+
+Mit freundlichen Grüßen,
+{sender_name}
+{sender_title} · {sender_company}
+{sender_address}
+{sender_phone} · {sender_email} · {sender_website}
