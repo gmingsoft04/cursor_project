@@ -1,0 +1,105 @@
+# 潜在客户搜索关键词配置
+# 围绕"快充头 / 快充线 / GaN 充电器 / Type-C / 数据线"的欧美 B2B 买家画像
+# 思路：找进口商、批发商、3C 配件零售商、移动配件分销商、品牌 OEM/ODM 采购方
+
+regions:
+  - US
+  - UK
+  - DE
+  - FR
+  - IT
+  - ES
+  - NL
+  - SE
+  - CA
+  - AU
+
+# 每条查询后会自动追加 site/contact 等限定词
+search_queries:
+  # 进口商 / 批发商
+  - "phone charger wholesaler contact email"
+  - "USB-C cable importer distributor email"
+  - "GaN charger wholesale supplier contact"
+  - "fast charger bulk buyer contact us"
+  - "mobile accessories distributor email"
+  - "consumer electronics importer wholesale contact"
+
+  # 零售连锁 / 电商品牌
+  - "phone accessories online store contact buyer"
+  - "USB cable retailer purchasing department"
+  - "电子配件 importer Europe contact email"
+
+  # 区域定向（欧洲 / 北美）
+  - "USB-C charger wholesaler Germany contact"
+  - "fast charger distributor UK contact"
+  - "phone charger importer France email"
+  - "consumer electronics wholesaler Netherlands"
+  - "mobile accessories distributor Canada contact"
+  - "phone charger wholesale USA contact email"
+
+  # 渠道型买家
+  - "private label phone charger manufacturer buyer"
+  - "OEM USB-C cable buyer purchasing"
+  - "Amazon FBA seller phone charger sourcing contact"
+
+# 邮箱常见 B2B 前缀（用于打分）
+preferred_prefixes:
+  - info
+  - sales
+  - contact
+  - purchasing
+  - procurement
+  - buyer
+  - buying
+  - sourcing
+  - business
+  - wholesale
+  - import
+  - hello
+  - office
+
+# 域名/邮箱黑名单（明显无关或容易误抓）
+blocklist_domains:
+  - example.com
+  - sentry.io
+  - wixpress.com
+  - wordpress.com
+  - shopify.com
+  - cloudflare.com
+  - googleapis.com
+  - gstatic.com
+  - amazonaws.com
+  - facebook.com
+  - twitter.com
+  - linkedin.com
+  - instagram.com
+  - youtube.com
+  - tiktok.com
+  - github.com
+  - mozilla.org
+  - w3.org
+  - schema.org
+  - whatsapp.com
+  - sentry-next.wixpress.com
+
+# 邮箱本地部分黑名单（个人化或系统邮箱）
+blocklist_locals:
+  - noreply
+  - no-reply
+  - donotreply
+  - postmaster
+  - abuse
+  - webmaster
+  - hostmaster
+  - privacy
+  - security
+  - mailer-daemon
+  - press
+  - jobs
+  - careers
+  - hr
+  - recruit
+  - recruiting
+  - legal
+  - dpo
+  - gdpr

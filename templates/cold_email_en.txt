@@ -1,0 +1,32 @@
+Subject: {sender_company} — GaN fast chargers & USB-C cables, factory direct (samples available)
+
+Hello {first_name_or_team},
+
+I'm {sender_name} from {sender_company}, a Shenzhen-based manufacturer of
+GaN fast chargers (20W–140W) and USB-C / Lightning cables (USB-IF / MFi
+optional). We supply private-label and OEM programs to importers and
+retailers across the US and EU.
+
+A few things buyers usually compare us on:
+  • PD 3.0 / PPS, GaN III, multi-port (1C, 2C1A, 3C1A, etc.)
+  • Certifications: FCC, CE, UKCA, RoHS, REACH, DoE VI; MFi on request
+  • MOQ from 500 pcs, 25 days lead time, FOB Shenzhen / DDP US/EU
+  • Free samples for verified buyers; full FBA-ready packaging available
+
+If this is relevant for your sourcing pipeline, I'd be glad to send a
+short PDF catalog and a sample quotation for your top SKUs. If not the
+right contact, a quick forward to your purchasing team would mean a lot.
+
+You can reply STOP and I will remove you from this list immediately.
+
+Best regards,
+{sender_name}
+{sender_title} · {sender_company}
+{sender_address}
+{sender_phone} · {sender_email} · {sender_website}
+
+---
+Why you received this: I found {recipient_company}'s public business
+contact email on {source_url} and reached out under legitimate B2B
+interest. We do not share or sell contact data. To opt out from future
+emails, simply reply "unsubscribe".
