@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>欧美快充客户采集工具 · Charger Leads Toolkit</title>
+  <meta name="description" content="面向中国快充头/快充线批发商的欧美 B2B 潜在客户采集工具：搜索关键词、目标平台、客户跟进 CRM、开发信模板、AI 客户生成。" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>欧美快充客户采集工具</h1>
+        <p class="subtitle">Charger &amp; Cable B2B Leads Toolkit · 100% 本地存储</p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="keywords">🔍 搜索关键词</button>
+      <button class="tab" data-tab="platforms">🌐 目标平台</button>
+      <button class="tab" data-tab="crm">📇 客户追踪</button>
+      <button class="tab" data-tab="templates">✉️ 开发信模板</button>
+      <button class="tab" data-tab="ai">🤖 AI 生成客户</button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ========== 模块 1：搜索关键词 ========== -->
+    <section class="panel" id="panel-keywords">
+      <div class="panel-head">
+        <h2>48 个分类搜索关键词</h2>
+        <p>点击任意关键词即可复制到剪贴板，直接粘贴到 Google / LinkedIn / Apollo / DuckDuckGo 即可使用。</p>
+      </div>
+      <div class="kw-toolbar">
+        <input type="search" id="kw-search" placeholder="过滤关键词，例如 distributor / Germany / Amazon …" />
+        <div class="kw-tabs" id="kw-tabs"></div>
+      </div>
+      <div id="keyword-grid" class="kw-grid"></div>
+
+      <div class="panel-head" style="margin-top:32px;">
+        <h2>Google Dork 高级搜索语法</h2>
+        <p>用于在 Google 中精准定位带邮箱的联系页 / 进口商目录 / LinkedIn 个人页。点击直接打开 Google 搜索。</p>
+      </div>
+      <div id="dork-list" class="dork-list"></div>
+    </section>
+
+    <!-- ========== 模块 2：目标平台 ========== -->
+    <section class="panel hidden" id="panel-platforms">
+      <div class="panel-head">
+        <h2>8 个推荐获客平台</h2>
+        <p>已按"性价比 / 精准度"排序。Apollo + ImportGenius + Hunter 是凑齐 100 个邮箱的最快路径。</p>
+      </div>
+      <div id="platform-grid" class="platform-grid"></div>
+
+      <div class="callout">
+        <h3>找到 100 个邮箱的最快路径</h3>
+        <ol>
+          <li><strong>Apollo.io</strong> 筛选 美国 / 德国，行业 = "Consumer Electronics" 或 "Phone Accessories"，导出 ~50 个联系人。</li>
+          <li><strong>ImportGenius / Panjiva</strong> 查近 6 个月从中国进口 USB-C charger / cable / GaN charger 的美国公司，拿到公司名后用 <strong>Hunter.io</strong> 找邮箱（约 ~30 个）。</li>
+          <li><strong>LinkedIn</strong> 搜 <code>phone accessories buyer USA</code> / <code>purchasing manager mobile accessories</code>，逐一加好友（约 ~20 个）。</li>
+          <li>所有结果导入 <a href="#" data-jump="crm">客户追踪</a> 模块统一跟进。</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ========== 模块 3：客户跟进 CRM ========== -->
+    <section class="panel hidden" id="panel-crm">
+      <div class="panel-head">
+        <h2>客户追踪</h2>
+        <p>所有数据保存在浏览器本地（localStorage），刷新不会丢失。可导出 / 导入 CSV。</p>
+      </div>
+
+      <div class="crm-toolbar">
+        <button class="btn primary" id="crm-add">+ 添加客户</button>
+        <button class="btn" id="crm-import">📥 导入 CSV</button>
+        <input type="file" id="crm-import-file" accept=".csv" hidden />
+        <button class="btn" id="crm-export">📤 导出 CSV</button>
+        <button class="btn danger ghost" id="crm-clear">清空</button>
+        <span class="spacer"></span>
+        <input type="search" id="crm-search" placeholder="按公司 / 邮箱 / 国家过滤…" />
+        <select id="crm-filter-status">
+          <option value="">全部状态</option>
+          <option value="new">新增</option>
+          <option value="contacted">已发开发信</option>
+          <option value="replied">已回复</option>
+          <option value="negotiating">谈判中</option>
+          <option value="won">成交</option>
+          <option value="lost">流失</option>
+        </select>
+      </div>
+
+      <div class="crm-stats" id="crm-stats"></div>
+
+      <div class="table-wrap">
+        <table class="crm-table">
+          <thead>
+            <tr>
+              <th>公司</th><th>联系人</th><th>邮箱</th><th>国家</th><th>类型</th>
+              <th>状态</th><th>下次跟进</th><th>来源</th><th>备注</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="crm-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ========== 模块 4：开发信模板 ========== -->
+    <section class="panel hidden" id="panel-templates">
+      <div class="panel-head">
+        <h2>3 种风格开发信</h2>
+        <p>填入下方信息后自动生成，可一键复制。所有模板都符合 CAN-SPAM / GDPR 的基本要求（含来源说明 + 退订选项）。</p>
+      </div>
+
+      <div class="tpl-form">
+        <div class="form-row">
+          <label>风格
+            <select id="tpl-style">
+              <option value="formal">① 正式商务 (Formal)</option>
+              <option value="concise">② 简洁直接 (Concise)</option>
+              <option value="product">③ 产品介绍 (Product Pitch)</option>
+            </select>
+          </label>
+          <label>对方公司
+            <input type="text" id="tpl-recipient-company" placeholder="ACME Phone Accessories Inc." />
+          </label>
+          <label>对方称呼
+            <input type="text" id="tpl-recipient-name" placeholder="Purchasing Team / John" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>你的公司
+            <input type="text" id="tpl-sender-company" placeholder="Shenzhen XYZ Technology Co., Ltd." />
+          </label>
+          <label>你的姓名
+            <input type="text" id="tpl-sender-name" placeholder="Lily Wang" />
+          </label>
+          <label>你的职位
+            <input type="text" id="tpl-sender-title" placeholder="Sales Manager" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>邮箱
+            <input type="text" id="tpl-sender-email" placeholder="lily@xyz.com" />
+          </label>
+          <label>电话/WhatsApp
+            <input type="text" id="tpl-sender-phone" placeholder="+86 138 0000 0000" />
+          </label>
+          <label>网站
+            <input type="text" id="tpl-sender-website" placeholder="https://xyz.com" />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>主推产品
+            <input type="text" id="tpl-product" value="GaN fast chargers (20W–140W) and USB-C / Lightning cables" />
+          </label>
+          <label>认证
+            <input type="text" id="tpl-certs" value="FCC, CE, UKCA, RoHS, REACH, DoE VI, MFi (optional)" />
+          </label>
+          <label>线索来源（可选）
+            <input type="text" id="tpl-source" placeholder="https://acme.com/contact" />
+          </label>
+        </div>
+      </div>
+
+      <div class="tpl-preview-head">
+        <h3>预览</h3>
+        <div>
+          <button class="btn" id="tpl-regen">🔄 重新生成</button>
+          <button class="btn primary" id="tpl-copy">📋 复制邮件</button>
+        </div>
+      </div>
+      <pre class="tpl-preview" id="tpl-preview"></pre>
+    </section>
+
+    <!-- ========== 模块 5：AI 客户生成 ========== -->
+    <section class="panel hidden" id="panel-ai">
+      <div class="panel-head">
+        <h2>AI 生成客户开发策略</h2>
+        <p>选择目标国家和客户类型，自动生成针对性的搜索建议、平台组合和 4 周行动计划。</p>
+      </div>
+      <div class="ai-form">
+        <label>目标国家
+          <select id="ai-country">
+            <option>美国 (US)</option>
+            <option>英国 (UK)</option>
+            <option>德国 (DE)</option>
+            <option>法国 (FR)</option>
+            <option>意大利 (IT)</option>
+            <option>西班牙 (ES)</option>
+            <option>荷兰 (NL)</option>
+            <option>瑞典 (SE)</option>
+            <option>加拿大 (CA)</option>
+            <option>澳大利亚 (AU)</option>
+          </select>
+        </label>
+        <label>客户类型
+          <select id="ai-type">
+            <option value="distributor">进口商 / 批发分销商</option>
+            <option value="retailer">3C 配件零售连锁</option>
+            <option value="ecommerce">跨境电商 / Amazon FBA 卖家</option>
+            <option value="oem">品牌 OEM / ODM 采购方</option>
+            <option value="telecom">运营商 / 增值零售（Verizon / Vodafone 等）</option>
+          </select>
+        </label>
+        <label>预算/规模
+          <select id="ai-scale">
+            <option value="small">小批量探索（MOQ 500–2000）</option>
+            <option value="medium">中型订单（2000–10000）</option>
+            <option value="large">长期合作（10000+ 或品牌定制）</option>
+          </select>
+        </label>
+        <button class="btn primary" id="ai-generate">生成策略</button>
+      </div>
+      <div id="ai-output" class="ai-output"></div>
+    </section>
+
+  </main>
+
+  <!-- 客户编辑弹窗 -->
+  <div class="modal hidden" id="modal">
+    <div class="modal-box">
+      <h3 id="modal-title">添加客户</h3>
+      <div class="form-grid">
+        <label>公司 *<input id="m-company" /></label>
+        <label>联系人<input id="m-contact" /></label>
+        <label>邮箱 *<input id="m-email" type="email" /></label>
+        <label>国家<input id="m-country" placeholder="US / DE / UK …" /></label>
+        <label>客户类型
+          <select id="m-type">
+            <option>进口商 / 批发分销商</option>
+            <option>3C 配件零售连锁</option>
+            <option>跨境电商 / Amazon FBA 卖家</option>
+            <option>品牌 OEM / ODM 采购方</option>
+            <option>运营商 / 增值零售</option>
+            <option>其他</option>
+          </select>
+        </label>
+        <label>状态
+          <select id="m-status">
+            <option value="new">新增</option>
+            <option value="contacted">已发开发信</option>
+            <option value="replied">已回复</option>
+            <option value="negotiating">谈判中</option>
+            <option value="won">成交</option>
+            <option value="lost">流失</option>
+          </select>
+        </label>
+        <label>下次跟进<input id="m-next" type="date" /></label>
+        <label>来源<input id="m-source" placeholder="Apollo / LinkedIn / ImportGenius …" /></label>
+        <label class="full">备注<textarea id="m-notes" rows="3"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="m-cancel">取消</button>
+        <button class="btn primary" id="m-save">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <footer class="footer">
+    <p>合规提醒：仅采集公开商业邮箱（info@ / sales@ / purchasing@），外发须遵守 CAN-SPAM / GDPR / PECR / CASL，邮件中务必含真实地址 + 退订方式。</p>
+  </footer>
+
+  <script src="js/data.js"></script>
+  <script src="js/keywords.js"></script>
+  <script src="js/platforms.js"></script>
+  <script src="js/crm.js"></script>
+  <script src="js/templates.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
