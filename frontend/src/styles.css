@@ -1,0 +1,141 @@
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Helvetica, 'Hiragino Sans GB',
+    'Microsoft YaHei', Arial, sans-serif;
+}
+
+.app-layout {
+  height: 100vh;
+}
+
+.app-aside {
+  background: #1f2937;
+  color: #f9fafb;
+}
+
+.app-aside .logo {
+  padding: 18px 16px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  border-bottom: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-aside .el-menu {
+  background: transparent;
+  border-right: none;
+}
+
+.app-aside .el-menu-item {
+  color: #d1d5db;
+}
+
+.app-aside .el-menu-item.is-active {
+  background: #374151;
+  color: #fff;
+}
+
+.app-aside .el-menu-item:hover {
+  background: #374151;
+}
+
+.app-header {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.app-main {
+  background: #f3f4f6;
+  padding: 24px;
+}
+
+.page-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.page-card + .page-card {
+  margin-top: 16px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #111827;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  border-left: 4px solid #2563eb;
+}
+
+.stat-card.green {
+  border-left-color: #16a34a;
+}
+
+.stat-card.red {
+  border-left-color: #dc2626;
+}
+
+.stat-card.gray {
+  border-left-color: #6b7280;
+}
+
+.stat-card .label {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.stat-card .value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: 4px;
+  color: #111827;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.toolbar .grow {
+  flex: 1;
+}
+
+.email-preview-frame {
+  width: 100%;
+  min-height: 380px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+}
