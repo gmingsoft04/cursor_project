@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "run":
         products = normalize_csv_option(args.products, DEFAULT_PRODUCTS)
         markets = normalize_csv_option(args.markets, DEFAULT_MARKETS)
-        store = None if args.no_persist else LeadStore(db_path)
+        store = None if args.no_persist or args.dry_run else LeadStore(db_path)
         http = JsonHttpClient(settings.request_timeout_seconds)
         pipeline = LeadGenerationPipeline(
             serper=SerperClient(settings.serper_api_key, http=http) if settings.serper_api_key else None,
