@@ -15,6 +15,10 @@ DEFAULT_AI_API_BASE = "https://api.openai.com/v1"
 DEFAULT_AI_MODEL = "gpt-4o-mini"
 DEFAULT_SMTP_PORT = 587
 DEFAULT_SMTP_USE_TLS = True
+DEFAULT_AUTH_ADMIN_USERNAME = "admin"
+DEFAULT_AUTH_ADMIN_PASSWORD = "change-me"
+DEFAULT_AUTH_SESSION_HOURS = 12
+DEFAULT_CORS_ALLOW_ORIGIN = "*"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,10 @@ class Settings:
     smtp_from_email: str | None = None
     smtp_from_name: str | None = None
     smtp_use_tls: bool = DEFAULT_SMTP_USE_TLS
+    auth_admin_username: str = DEFAULT_AUTH_ADMIN_USERNAME
+    auth_admin_password: str = DEFAULT_AUTH_ADMIN_PASSWORD
+    auth_session_hours: int = DEFAULT_AUTH_SESSION_HOURS
+    cors_allow_origin: str = DEFAULT_CORS_ALLOW_ORIGIN
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -64,6 +72,10 @@ class Settings:
             smtp_from_email=_empty_to_none(os.getenv("SMTP_FROM_EMAIL")),
             smtp_from_name=_empty_to_none(os.getenv("SMTP_FROM_NAME")),
             smtp_use_tls=_parse_bool(os.getenv("SMTP_USE_TLS"), DEFAULT_SMTP_USE_TLS),
+            auth_admin_username=os.getenv("AUTH_ADMIN_USERNAME", DEFAULT_AUTH_ADMIN_USERNAME),
+            auth_admin_password=os.getenv("AUTH_ADMIN_PASSWORD", DEFAULT_AUTH_ADMIN_PASSWORD),
+            auth_session_hours=int(os.getenv("AUTH_SESSION_HOURS", str(DEFAULT_AUTH_SESSION_HOURS))),
+            cors_allow_origin=os.getenv("CORS_ALLOW_ORIGIN", DEFAULT_CORS_ALLOW_ORIGIN),
         )
 
 

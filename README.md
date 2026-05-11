@@ -12,6 +12,7 @@ FastCharge Leads 是一个面向外贸业务的 Python 获客系统，聚焦 **�
 - 对公司线索去重、打分、落库到 SQLite，并导出 CSV。
 - 利用 AI 动态生成开发信草稿，支持预览、人工审核、改写、批准后 SMTP 发送。
 - 提供 Vue3 前端 + Python JSON API 的前后端分离后台，用于查看线索、生成草稿、预览编辑开发信、人工审核和发送。
+- 提供登录鉴权、操作日志和 CRM 跟进状态，便于业务团队协作运营。
 - 所有外部接口都集中在 `src/fastcharge_leads/clients/`，便于替换实际服务商。
 
 ## 项目结构
@@ -58,6 +59,9 @@ cp .env.example .env
 | `SMTP_HOST` / `SMTP_PORT` | SMTP 服务器与端口 |
 | `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP 登录信息 |
 | `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | 发件邮箱与发件人名称 |
+| `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` | 本地后台管理员账号；上线前必须修改默认密码 |
+| `AUTH_SESSION_HOURS` | 登录会话有效小时数，默认 12 |
+| `CORS_ALLOW_ORIGIN` | 允许访问 API 的前端 Origin，开发环境可设为 `http://127.0.0.1:5173` |
 
 海关接口适配器会发起：
 
@@ -192,16 +196,32 @@ npm run build
 
 Vue 后台页面包含：
 
+- Login：管理员登录后才可以访问线索、开发信、发送和日志 API。
 - Dashboard：查看高分客户、开发信草稿统计。
-- Leads：查看公司线索、官网、国家、产品兴趣、海关匹配、联系人数量和评分。
+- Leads：查看公司线索、官网、国家、产品兴趣、海关匹配、联系人数量和评分，并维护 CRM 跟进状态。
 - Email drafts：
   - 按评分批量生成开发信草稿。
   - 按 `draft`、`approved`、`rejected`、`sent`、`failed` 过滤。
   - 进入单个草稿详情页，预览和编辑标题/正文。
   - 人工审核通过或拒绝。
   - 对已审核通过的草稿执行 dry-run 或真实 SMTP 发送。
+- Audit logs：查看登录、CRM 更新、草稿生成/编辑/审核/发送等关键动作。
 
-默认建议 API 只绑定 `127.0.0.1`。当前前后端分离后台是本地运营工具，没有内置登录鉴权；如果要部署到公网，应先增加登录、权限控制、HTTPS、CORS 白名单和发送审计。
+默认建议 API 只绑定 `127.0.0.1`。如果要部署到公网，应配置强密码、HTTPS、CORS 白名单，并接入更完整的用户/角色体系。
+
+CRM 跟进状态默认包括：
+
+```text
+new, contacted, replied, quoted, sample, negotiating, won, lost, invalid
+```
+
+后端会把以下关键操作写入 `audit_logs`：
+
+- 登录成功/失败、退出登录。
+- CRM 跟进状态更新。
+- AI 开发信草稿生成。
+- 开发信编辑、审核通过、拒绝。
+- 已审核开发信 dry-run 或真实发送。
 
 ## 线索评分逻辑
 
@@ -220,6 +240,7 @@ Vue 后台页面包含：
 - Apollo 与海关数据的可用字段、额度和授权范围取决于账号及服务商合同。
 - 建议在实际外联前对邮箱、公司状态和采购角色进行二次校验。
 - 开发信不会自动发送给未审核草稿；请遵守目标市场的邮件营销、退订和隐私合规要求。
+- 不要在公网使用默认 `AUTH_ADMIN_PASSWORD=change-me`。
 
 ## 测试
 

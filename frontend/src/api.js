@@ -1,9 +1,23 @@
 const API_BASE = import.meta.env.VITE_API_BASE || ''
+const TOKEN_KEY = 'fastcharge_leads_token'
+
+export function getStoredToken() {
+  return localStorage.getItem(TOKEN_KEY) || ''
+}
+
+export function setStoredToken(token) {
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token)
+  } else {
+    localStorage.removeItem(TOKEN_KEY)
+  }
+}
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(getStoredToken() ? { Authorization: `Bearer ${getStoredToken()}` } : {}),
       ...(options.headers || {}),
     },
     ...options,
@@ -16,12 +30,42 @@ async function request(path, options = {}) {
   return data
 }
 
+export async function login(username, password) {
+  const data = await request('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ username, password }),
+  })
+  setStoredToken(data.token)
+  return data
+}
+
+export function logout() {
+  return request('/api/auth/logout', { method: 'POST', body: JSON.stringify({}) }).finally(() => {
+    setStoredToken('')
+  })
+}
+
+export function getCurrentUser() {
+  return request('/api/auth/me')
+}
+
 export function getDashboard() {
   return request('/api/dashboard')
 }
 
 export function getLeads(limit = 100) {
   return request(`/api/leads?limit=${limit}`)
+}
+
+export function updateLeadCrm(id, payload) {
+  return request(`/api/leads/${id}/crm`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAuditLogs(limit = 100) {
+  return request(`/api/audit-logs?limit=${limit}`)
 }
 
 export function getEmailDrafts({ status = '', limit = 50 } = {}) {

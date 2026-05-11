@@ -26,32 +26,50 @@ class WebApiTest(unittest.TestCase):
             )
             store.close()
 
-            app = WebApi(db_path=db_path, settings=Settings())
+            app = WebApi(db_path=db_path, settings=Settings(auth_admin_username="admin", auth_admin_password="secret"))
+
+            response = app.dispatch("GET", "/api/dashboard", headers=headers)
+            self.assertEqual(response.status, 401)
+
+            response = app.dispatch("POST", "/api/auth/login", b'{"username":"admin","password":"secret"}')
+            self.assertEqual(response.status, 200)
+            token = response.body["token"]
+            headers = {"Authorization": f"Bearer {token}"}
+
             response = app.dispatch("GET", "/api/dashboard")
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["top_leads"][0]["company_name"], "Acme Mobile Accessories")
 
-            response = app.dispatch("POST", "/api/email-drafts/generate", b'{"limit":1,"min_score":80,"language":"English"}')
+            response = app.dispatch("PUT", "/api/leads/1/crm", b'{"crm_status":"contacted","owner":"alice","crm_notes":"First call"}', headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["crm_status"], "contacted")
+
+            response = app.dispatch("POST", "/api/email-drafts/generate", b'{"limit":1,"min_score":80,"language":"English"}', headers=headers)
             self.assertEqual(response.status, 201)
             self.assertEqual(response.body["created"], 1)
 
-            response = app.dispatch("GET", "/api/email-drafts")
+            response = app.dispatch("GET", "/api/email-drafts", headers=headers)
             self.assertIn("USB-C PD charger supply", response.body["items"][0]["subject"])
 
-            response = app.dispatch("PUT", "/api/email-drafts/1", b'{"subject":"Reviewed subject","body":"Reviewed body"}')
+            response = app.dispatch("PUT", "/api/email-drafts/1", b'{"subject":"Reviewed subject","body":"Reviewed body"}', headers=headers)
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["subject"], "Reviewed subject")
 
-            response = app.dispatch("GET", "/api/email-drafts/1")
+            response = app.dispatch("GET", "/api/email-drafts/1", headers=headers)
             self.assertEqual(response.body["body"], "Reviewed body")
 
-            response = app.dispatch("POST", "/api/email-drafts/1/approve", b'{"reviewer":"qa"}')
+            response = app.dispatch("POST", "/api/email-drafts/1/approve", b'{"reviewer":"qa"}', headers=headers)
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["status"], "approved")
 
-            response = app.dispatch("POST", "/api/email-drafts/send-approved", b'{"limit":1,"dry_run":true}')
+            response = app.dispatch("POST", "/api/email-drafts/send-approved", b'{"limit":1,"dry_run":true}', headers=headers)
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["sent"], 1)
+
+            response = app.dispatch("GET", "/api/audit-logs", headers=headers)
+            actions = [row["action"] for row in response.body["items"]]
+            self.assertIn("companies.crm_update", actions)
+            self.assertIn("email_drafts.approve", actions)
 
 
 if __name__ == "__main__":

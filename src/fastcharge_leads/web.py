@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import hmac
+import secrets
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import parse_qs, urlparse
@@ -29,58 +33,119 @@ class WebApi:
         self.db_path = db_path
         self.settings = settings
 
-    def dispatch(self, method: str, raw_path: str, body: bytes = b"") -> ApiResponse:
+    def dispatch(self, method: str, raw_path: str, body: bytes = b"", headers: dict[str, str] | None = None) -> ApiResponse:
         parsed = urlparse(raw_path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
         payload = _json_body(body)
+        headers = headers or {}
         try:
             if method == "OPTIONS":
                 return ApiResponse(status=204)
+            if method == "POST" and path == "/api/auth/login":
+                return self._login(payload)
+            actor = self._authenticate(headers, required=path not in {"/", "/api/health"})
+            if actor is None and path not in {"/", "/api/health"}:
+                return _error("Authentication required.", status=401)
             if method == "GET":
-                return self._get(path, query)
+                return self._get(path, query, actor=actor)
             if method == "POST":
-                return self._post(path, payload)
+                return self._post(path, payload, actor=actor or "anonymous", headers=headers)
             if method == "PUT":
-                return self._put(path, payload)
+                return self._put(path, payload, actor=actor or "anonymous")
             return _error("Unsupported method.", status=405)
         except ValueError as exc:
             return _error(str(exc), status=400)
         except Exception as exc:  # pragma: no cover - keeps API callers from receiving empty responses.
             return _error(str(exc), status=500)
 
-    def _get(self, path: str, query: dict[str, list[str]]) -> ApiResponse:
+    def _get(self, path: str, query: dict[str, list[str]], *, actor: str | None) -> ApiResponse:
         if path in {"/", "/api/health"}:
             return _json({"status": "ok", "service": "fastcharge-leads-api"})
+        if path == "/api/auth/me":
+            return _json({"username": actor, "role": "admin"})
         if path == "/api/dashboard":
             return self._dashboard()
         if path == "/api/leads":
             return self._leads(query)
+        if path == "/api/audit-logs":
+            return self._audit_logs(query)
         if path == "/api/email-drafts":
             return self._email_drafts(query)
         if path.startswith("/api/email-drafts/"):
             return self._email_detail(_path_int(path, "/api/email-drafts/"))
         return _error("Not found.", status=404)
 
-    def _post(self, path: str, payload: dict[str, Any]) -> ApiResponse:
+    def _post(self, path: str, payload: dict[str, Any], *, actor: str, headers: dict[str, str]) -> ApiResponse:
+        if path == "/api/auth/logout":
+            return self._logout(headers, actor=actor)
         if path == "/api/email-drafts/generate":
-            return self._generate_email_drafts(payload)
+            return self._generate_email_drafts(payload, actor=actor)
         if path == "/api/email-drafts/send-approved":
-            return self._send_approved(payload)
+            return self._send_approved(payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
             remainder = path.removeprefix("/api/email-drafts/")
             draft_id_text, _, action = remainder.partition("/")
             draft_id = int(draft_id_text)
             if action == "approve":
-                return self._review_email(draft_id, approved=True, payload=payload)
+                return self._review_email(draft_id, approved=True, payload=payload, actor=actor)
             if action == "reject":
-                return self._review_email(draft_id, approved=False, payload=payload)
+                return self._review_email(draft_id, approved=False, payload=payload, actor=actor)
         return _error("Action not found.", status=404)
 
-    def _put(self, path: str, payload: dict[str, Any]) -> ApiResponse:
+    def _put(self, path: str, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        if path.startswith("/api/leads/") and path.endswith("/crm"):
+            company_id = int(path.removeprefix("/api/leads/").split("/", 1)[0])
+            return self._update_company_crm(company_id, payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
-            return self._edit_email(_path_int(path, "/api/email-drafts/"), payload)
+            return self._edit_email(_path_int(path, "/api/email-drafts/"), payload, actor=actor)
         return _error("Action not found.", status=404)
+
+    def _login(self, payload: dict[str, Any]) -> ApiResponse:
+        username = str(payload.get("username") or "")
+        password = str(payload.get("password") or "")
+        if not (
+            hmac.compare_digest(username, self.settings.auth_admin_username)
+            and hmac.compare_digest(password, self.settings.auth_admin_password)
+        ):
+            with _store(self.db_path) as store:
+                store.log_action(actor=username or "anonymous", action="auth.login_failed", metadata={"username": username})
+            return _error("Invalid username or password.", status=401)
+        token = secrets.token_urlsafe(32)
+        expires_at = _utc_now() + timedelta(hours=self.settings.auth_session_hours)
+        with _store(self.db_path) as store:
+            store.create_session(
+                token_hash=_token_hash(token),
+                username=username,
+                role="admin",
+                expires_at=_format_time(expires_at),
+            )
+            store.log_action(actor=username, action="auth.login", metadata={"role": "admin"})
+        return _json(
+            {
+                "token": token,
+                "user": {"username": username, "role": "admin"},
+                "expires_at": _format_time(expires_at),
+            }
+        )
+
+    def _logout(self, headers: dict[str, str], *, actor: str) -> ApiResponse:
+        token = _bearer_token(headers)
+        if token:
+            with _store(self.db_path) as store:
+                store.delete_session(_token_hash(token))
+                store.log_action(actor=actor, action="auth.logout")
+        return _json({"status": "logged_out"})
+
+    def _authenticate(self, headers: dict[str, str], *, required: bool) -> str | None:
+        token = _bearer_token(headers)
+        if not token:
+            return None if required else None
+        with _store(self.db_path) as store:
+            session = store.get_session(_token_hash(token), now=_format_time(_utc_now()))
+        if not session:
+            return None
+        return str(session["username"])
 
     def _dashboard(self) -> ApiResponse:
         with _store(self.db_path) as store:
@@ -93,6 +158,12 @@ class WebApi:
         with _store(self.db_path) as store:
             rows = store.list_companies(limit=limit)
         return _json({"items": [_company_payload(row) for row in rows]})
+
+    def _audit_logs(self, query: dict[str, list[str]]) -> ApiResponse:
+        limit = _int_query(query, "limit", 100)
+        with _store(self.db_path) as store:
+            rows = store.list_audit_logs(limit=limit)
+        return _json({"items": [_audit_payload(row) for row in rows]})
 
     def _email_drafts(self, query: dict[str, list[str]]) -> ApiResponse:
         status = _one(query, "status") or None
@@ -109,7 +180,7 @@ class WebApi:
             return _error("Draft not found.", status=404)
         return _json(_draft_payload(draft, include_body=True))
 
-    def _generate_email_drafts(self, payload: dict[str, Any]) -> ApiResponse:
+    def _generate_email_drafts(self, payload: dict[str, Any], *, actor: str) -> ApiResponse:
         limit = int(payload.get("limit") or 20)
         min_score = int(payload.get("min_score") or 70)
         language = str(payload.get("language") or "English")
@@ -119,30 +190,43 @@ class WebApi:
                 min_score=min_score,
                 language=language,
             )
+            store.log_action(
+                actor=actor,
+                action="email_drafts.generate",
+                metadata={"created": result.created, "limit": limit, "min_score": min_score, "language": language},
+            )
         return _json(result.as_dict(), status=201)
 
-    def _edit_email(self, draft_id: int, payload: dict[str, Any]) -> ApiResponse:
+    def _edit_email(self, draft_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
         subject = str(payload.get("subject") or "").strip()
         body = str(payload.get("body") or "").strip()
         if not subject or not body:
             raise ValueError("Subject and body are required.")
         with _store(self.db_path) as store:
             store.update_email_draft_content(draft_id, subject=subject, body=body)
+            store.log_action(actor=actor, action="email_drafts.edit", entity_type="email_draft", entity_id=draft_id)
             draft = store.get_email_draft(draft_id)
         if not draft:
             return _error("Draft not found.", status=404)
         return _json(_draft_payload(draft, include_body=True))
 
-    def _review_email(self, draft_id: int, *, approved: bool, payload: dict[str, Any]) -> ApiResponse:
+    def _review_email(self, draft_id: int, *, approved: bool, payload: dict[str, Any], actor: str) -> ApiResponse:
         reviewer = str(payload.get("reviewer") or "vue-dashboard")
         with _store(self.db_path) as store:
             store.review_email_draft(draft_id, approved=approved, reviewer=reviewer)
+            store.log_action(
+                actor=actor,
+                action="email_drafts.approve" if approved else "email_drafts.reject",
+                entity_type="email_draft",
+                entity_id=draft_id,
+                metadata={"reviewer": reviewer},
+            )
             draft = store.get_email_draft(draft_id)
         if not draft:
             return _error("Draft not found.", status=404)
         return _json(_draft_payload(draft, include_body=True))
 
-    def _send_approved(self, payload: dict[str, Any]) -> ApiResponse:
+    def _send_approved(self, payload: dict[str, Any], *, actor: str) -> ApiResponse:
         limit = int(payload.get("limit") or 20)
         dry_run = bool(payload.get("dry_run", False))
         with _store(self.db_path) as store:
@@ -151,7 +235,41 @@ class WebApi:
                 limit=limit,
                 dry_run=dry_run,
             )
+            store.log_action(
+                actor=actor,
+                action="email_drafts.send_approved_dry_run" if dry_run else "email_drafts.send_approved",
+                metadata=result.as_dict(),
+            )
         return _json(result.as_dict())
+
+    def _update_company_crm(self, company_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        crm_status = str(payload.get("crm_status") or "").strip()
+        if not crm_status:
+            raise ValueError("crm_status is required.")
+        with _store(self.db_path) as store:
+            store.update_company_crm(
+                company_id,
+                crm_status=crm_status,
+                owner=_empty_string_to_none(payload.get("owner")),
+                next_follow_up_at=_empty_string_to_none(payload.get("next_follow_up_at")),
+                crm_notes=_empty_string_to_none(payload.get("crm_notes")),
+            )
+            store.log_action(
+                actor=actor,
+                action="companies.crm_update",
+                entity_type="company",
+                entity_id=company_id,
+                metadata={
+                    "crm_status": crm_status,
+                    "owner": payload.get("owner"),
+                    "next_follow_up_at": payload.get("next_follow_up_at"),
+                },
+            )
+            company = store.get_company(company_id)
+            contact_count = len(store.list_contacts_for_company(company_id))
+        if not company:
+            return _error("Company not found.", status=404)
+        return _json(_company_payload(company, contact_count=contact_count))
 
     def _generator(self):
         http = JsonHttpClient(self.settings.request_timeout_seconds)
@@ -183,18 +301,26 @@ def run_web_server(*, db_path: str, settings: Settings, host: str = "127.0.0.1",
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802 - standard library handler API.
-            _send(self, api.dispatch("GET", self.path))
+            _send(self, api.dispatch("GET", self.path, headers=dict(self.headers)), api.settings.cors_allow_origin)
 
         def do_POST(self) -> None:  # noqa: N802 - standard library handler API.
             length = int(self.headers.get("Content-Length", "0"))
-            _send(self, api.dispatch("POST", self.path, self.rfile.read(length)))
+            _send(
+                self,
+                api.dispatch("POST", self.path, self.rfile.read(length), headers=dict(self.headers)),
+                api.settings.cors_allow_origin,
+            )
 
         def do_PUT(self) -> None:  # noqa: N802 - standard library handler API.
             length = int(self.headers.get("Content-Length", "0"))
-            _send(self, api.dispatch("PUT", self.path, self.rfile.read(length)))
+            _send(
+                self,
+                api.dispatch("PUT", self.path, self.rfile.read(length), headers=dict(self.headers)),
+                api.settings.cors_allow_origin,
+            )
 
         def do_OPTIONS(self) -> None:  # noqa: N802 - standard library handler API.
-            _send(self, api.dispatch("OPTIONS", self.path))
+            _send(self, api.dispatch("OPTIONS", self.path, headers=dict(self.headers)), api.settings.cors_allow_origin)
 
         def log_message(self, format: str, *args) -> None:  # noqa: A002 - standard library signature.
             return
@@ -204,21 +330,21 @@ def run_web_server(*, db_path: str, settings: Settings, host: str = "127.0.0.1",
     server.serve_forever()
 
 
-def _send(handler: BaseHTTPRequestHandler, response: ApiResponse) -> None:
+def _send(handler: BaseHTTPRequestHandler, response: ApiResponse, cors_allow_origin: str) -> None:
     handler.send_response(response.status)
     handler.send_header("Content-Type", response.content_type)
-    for key, value in _headers(response).items():
+    for key, value in _headers(response, cors_allow_origin).items():
         handler.send_header(key, value)
     handler.end_headers()
     if response.body is not None:
         handler.wfile.write(json.dumps(response.body, ensure_ascii=False, default=str).encode("utf-8"))
 
 
-def _headers(response: ApiResponse) -> dict[str, str]:
+def _headers(response: ApiResponse, cors_allow_origin: str) -> dict[str, str]:
     return {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": cors_allow_origin,
         "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
         **(response.headers or {}),
     }
 
@@ -241,7 +367,7 @@ def _draft_counts(store: LeadStore) -> dict[str, int]:
     return counts
 
 
-def _company_payload(row: Any) -> dict[str, Any]:
+def _company_payload(row: Any, *, contact_count: int | None = None) -> dict[str, Any]:
     return {
         "id": row["id"],
         "company_name": row["company_name"],
@@ -254,9 +380,25 @@ def _company_payload(row: Any) -> dict[str, Any]:
         "customs_matches": row["customs_matches"],
         "score": row["score"],
         "signals": json.loads(row["signals_json"] or "[]"),
-        "contact_count": row["contact_count"],
+        "contact_count": contact_count if contact_count is not None else row["contact_count"],
+        "crm_status": row["crm_status"],
+        "owner": row["owner"],
+        "next_follow_up_at": row["next_follow_up_at"],
+        "crm_notes": row["crm_notes"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+    }
+
+
+def _audit_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "actor": row["actor"],
+        "action": row["action"],
+        "entity_type": row["entity_type"],
+        "entity_id": row["entity_id"],
+        "metadata": json.loads(row["metadata_json"] or "{}"),
+        "created_at": row["created_at"],
     }
 
 
@@ -300,6 +442,36 @@ def _json_body(body: bytes) -> dict[str, Any]:
     if not isinstance(parsed, dict):
         raise ValueError("Request JSON body must be an object.")
     return parsed
+
+
+def _bearer_token(headers: dict[str, str]) -> str | None:
+    authorization = ""
+    for key, value in headers.items():
+        if key.lower() == "authorization":
+            authorization = value
+            break
+    if not authorization.lower().startswith("bearer "):
+        return None
+    return authorization.split(" ", 1)[1].strip() or None
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _format_time(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _empty_string_to_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _path_int(path: str, prefix: str) -> int:

@@ -81,9 +81,34 @@ class LeadStore:
                 FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE,
                 FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE SET NULL
             );
+            CREATE TABLE IF NOT EXISTS sessions (
+                token_hash TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                role TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                actor TEXT NOT NULL,
+                action TEXT NOT NULL,
+                entity_type TEXT,
+                entity_id INTEGER,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
             """
         )
+        self._ensure_column("companies", "crm_status", "TEXT NOT NULL DEFAULT 'new'")
+        self._ensure_column("companies", "owner", "TEXT")
+        self._ensure_column("companies", "next_follow_up_at", "TEXT")
+        self._ensure_column("companies", "crm_notes", "TEXT")
         self._connection.commit()
+
+    def _ensure_column(self, table: str, column: str, definition: str) -> None:
+        columns = {row["name"] for row in self._connection.execute(f"PRAGMA table_info({table})")}
+        if column not in columns:
+            self._connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def upsert_company(self, lead: CompanyLead) -> int:
         payload = (
@@ -164,6 +189,81 @@ class LeadStore:
                 LEFT JOIN contacts ct ON ct.company_id = c.id
                 GROUP BY c.id
                 ORDER BY c.score DESC, c.updated_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        )
+
+    def update_company_crm(
+        self,
+        company_id: int,
+        *,
+        crm_status: str,
+        owner: str | None = None,
+        next_follow_up_at: str | None = None,
+        crm_notes: str | None = None,
+    ) -> None:
+        self._connection.execute(
+            """
+            UPDATE companies
+            SET crm_status = ?, owner = ?, next_follow_up_at = ?, crm_notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (crm_status, owner, next_follow_up_at, crm_notes, company_id),
+        )
+        self._connection.commit()
+
+    def create_session(self, *, token_hash: str, username: str, role: str, expires_at: str) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO sessions (token_hash, username, role, expires_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (token_hash, username, role, expires_at),
+        )
+        self._connection.commit()
+
+    def get_session(self, token_hash: str, *, now: str) -> sqlite3.Row | None:
+        return self._connection.execute(
+            """
+            SELECT *
+            FROM sessions
+            WHERE token_hash = ?
+              AND expires_at > ?
+            """,
+            (token_hash, now),
+        ).fetchone()
+
+    def delete_session(self, token_hash: str) -> None:
+        self._connection.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        self._connection.commit()
+
+    def log_action(
+        self,
+        *,
+        actor: str,
+        action: str,
+        entity_type: str | None = None,
+        entity_id: int | None = None,
+        metadata: dict | None = None,
+    ) -> None:
+        self._connection.execute(
+            """
+            INSERT INTO audit_logs (actor, action, entity_type, entity_id, metadata_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (actor, action, entity_type, entity_id, json.dumps(metadata or {}, ensure_ascii=False, default=str)),
+        )
+        self._connection.commit()
+
+    def list_audit_logs(self, *, limit: int = 100) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT *
+                FROM audit_logs
+                ORDER BY created_at DESC, id DESC
                 LIMIT ?
                 """,
                 (limit,),

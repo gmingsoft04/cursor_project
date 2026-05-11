@@ -1,5 +1,17 @@
 <template>
-  <div class="app-shell">
+  <div v-if="!user" class="login-screen">
+    <form class="login-card" @submit.prevent="submitLogin">
+      <span class="brand-mark">FC</span>
+      <h1>FastCharge Leads</h1>
+      <p>请登录后使用客户线索、开发信审核和发送功能。</p>
+      <label>用户名 <input v-model="loginForm.username" autocomplete="username" /></label>
+      <label>密码 <input v-model="loginForm.password" type="password" autocomplete="current-password" /></label>
+      <button type="submit">登录</button>
+      <div v-if="error" class="toast error">{{ error }}</div>
+    </form>
+  </div>
+
+  <div v-else class="app-shell">
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-mark">FC</span>
@@ -11,6 +23,7 @@
       <button :class="{ active: activeTab === 'dashboard' }" @click="switchTab('dashboard')">Dashboard</button>
       <button :class="{ active: activeTab === 'leads' }" @click="switchTab('leads')">客户线索</button>
       <button :class="{ active: activeTab === 'emails' }" @click="switchTab('emails')">开发信审核</button>
+      <button :class="{ active: activeTab === 'audit' }" @click="switchTab('audit')">操作日志</button>
     </aside>
 
     <main class="content">
@@ -19,7 +32,11 @@
           <h1>{{ pageTitle }}</h1>
           <p>Vue3 前端通过 JSON API 调用 Python 后端，开发信发送前必须人工审核。</p>
         </div>
-        <button class="ghost" @click="refreshCurrent">刷新</button>
+        <div class="userbar">
+          <span>{{ user.username }}</span>
+          <button class="ghost" @click="refreshCurrent">刷新</button>
+          <button class="ghost" @click="submitLogout">退出</button>
+        </div>
       </header>
 
       <div v-if="message" class="toast">{{ message }}</div>
@@ -44,7 +61,34 @@
           <label>显示数量 <input v-model.number="leadLimit" type="number" min="1" max="1000" /></label>
           <button @click="loadLeads">加载线索</button>
         </div>
-        <DataTable title="客户线索" :columns="leadColumns" :rows="leads" />
+        <div class="panel">
+          <h2>客户线索与 CRM 跟进</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>公司</th><th>国家</th><th>产品</th><th>评分</th><th>CRM 状态</th><th>负责人</th><th>下次跟进</th><th>备注</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="lead in leads" :key="lead.id">
+                <td>{{ lead.company_name }}</td>
+                <td>{{ lead.country }}</td>
+                <td>{{ lead.product_interest }}</td>
+                <td>{{ lead.score }}</td>
+                <td>
+                  <select v-model="lead.crm_status">
+                    <option v-for="status in crmStatuses" :key="status" :value="status">{{ status }}</option>
+                  </select>
+                </td>
+                <td><input v-model="lead.owner" placeholder="负责人" /></td>
+                <td><input v-model="lead.next_follow_up_at" placeholder="YYYY-MM-DD" /></td>
+                <td><input v-model="lead.crm_notes" placeholder="跟进备注" /></td>
+                <td><button @click="saveLeadCrm(lead)">保存</button></td>
+              </tr>
+              <tr v-if="!leads.length"><td colspan="9" class="empty">暂无线索。</td></tr>
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section v-if="activeTab === 'emails'" class="stack">
@@ -109,6 +153,31 @@
           </div>
         </div>
       </section>
+
+      <section v-if="activeTab === 'audit'" class="stack">
+        <div class="panel toolbar">
+          <label>显示数量 <input v-model.number="auditLimit" type="number" min="1" max="500" /></label>
+          <button @click="loadAuditLogs">加载日志</button>
+        </div>
+        <div class="panel">
+          <h2>操作日志</h2>
+          <table>
+            <thead>
+              <tr><th>时间</th><th>用户</th><th>动作</th><th>对象</th><th>详情</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in auditLogs" :key="log.id">
+                <td>{{ log.created_at }}</td>
+                <td>{{ log.actor }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.entity_type || '' }} {{ log.entity_id || '' }}</td>
+                <td><code>{{ JSON.stringify(log.metadata) }}</code></td>
+              </tr>
+              <tr v-if="!auditLogs.length"><td colspan="5" class="empty">暂无操作日志。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </main>
   </div>
 </template>
@@ -118,12 +187,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   approveEmailDraft,
   generateEmailDrafts,
+  getAuditLogs,
+  getCurrentUser,
   getDashboard,
   getEmailDraft,
   getEmailDrafts,
   getLeads,
+  getStoredToken,
+  login,
+  logout,
   rejectEmailDraft,
   sendApprovedDrafts,
+  updateLeadCrm,
   updateEmailDraft,
 } from './api'
 
@@ -152,23 +227,29 @@ const DataTable = {
 }
 
 const statuses = ['draft', 'approved', 'rejected', 'sent', 'failed']
+const crmStatuses = ['new', 'contacted', 'replied', 'quoted', 'sample', 'negotiating', 'won', 'lost', 'invalid']
 const activeTab = ref('dashboard')
 const message = ref('')
 const error = ref('')
+const user = ref(null)
 const dashboard = ref({})
 const leads = ref([])
+const auditLogs = ref([])
 const drafts = ref([])
 const draftCounts = ref({})
 const selectedDraft = ref(null)
 const draftStatus = ref('')
 const leadLimit = ref(100)
+const auditLimit = ref(100)
 const sendLimit = ref(20)
 const reviewer = ref('sales-manager')
 const generateForm = reactive({ limit: 20, min_score: 70, language: 'English' })
+const loginForm = reactive({ username: 'admin', password: '' })
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'leads') return '客户线索'
   if (activeTab.value === 'emails') return '开发信审核'
+  if (activeTab.value === 'audit') return '操作日志'
   return 'Dashboard'
 })
 
@@ -208,7 +289,37 @@ function switchTab(tab) {
 function refreshCurrent() {
   if (activeTab.value === 'dashboard') return loadDashboard()
   if (activeTab.value === 'leads') return loadLeads()
+  if (activeTab.value === 'audit') return loadAuditLogs()
   return loadDrafts()
+}
+
+async function submitLogin() {
+  await run(async () => {
+    const data = await login(loginForm.username, loginForm.password)
+    user.value = data.user
+    notify('登录成功')
+    await loadDashboard()
+  })
+}
+
+async function submitLogout() {
+  await run(async () => {
+    await logout()
+    user.value = null
+    dashboard.value = {}
+    leads.value = []
+    drafts.value = []
+    selectedDraft.value = null
+    notify('已退出')
+  })
+}
+
+async function restoreSession() {
+  if (!getStoredToken()) return
+  await run(async () => {
+    user.value = await getCurrentUser()
+    await loadDashboard()
+  })
 }
 
 async function loadDashboard() {
@@ -221,6 +332,26 @@ async function loadLeads() {
   await run(async () => {
     const data = await getLeads(leadLimit.value)
     leads.value = data.items
+  })
+}
+
+async function loadAuditLogs() {
+  await run(async () => {
+    const data = await getAuditLogs(auditLimit.value)
+    auditLogs.value = data.items
+  })
+}
+
+async function saveLeadCrm(lead) {
+  await run(async () => {
+    const updated = await updateLeadCrm(lead.id, {
+      crm_status: lead.crm_status,
+      owner: lead.owner,
+      next_follow_up_at: lead.next_follow_up_at,
+      crm_notes: lead.crm_notes,
+    })
+    Object.assign(lead, updated)
+    notify('CRM 跟进状态已保存')
   })
 }
 
@@ -293,6 +424,6 @@ async function sendApproved(dryRun) {
 }
 
 onMounted(() => {
-  loadDashboard()
+  restoreSession()
 })
 </script>
