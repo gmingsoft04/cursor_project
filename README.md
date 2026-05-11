@@ -14,6 +14,7 @@ FastCharge Leads 是一个面向外贸业务的 Python 获客系统，聚焦 **�
 - 提供 Vue3 前端 + Python JSON API 的前后端分离后台，用于查看线索、生成草稿、预览编辑开发信、人工审核和发送。
 - 提供登录鉴权、操作日志和 CRM 跟进状态，便于业务团队协作运营。
 - 支持防重复开发信、黑名单/退订名单、客户详情页和跟进时间线。
+- 支持客户资料体系、联系人管理和销售漏斗看板。
 - 提供 Docker / docker-compose 部署文件。
 - 所有外部接口都集中在 `src/fastcharge_leads/clients/`，便于替换实际服务商。
 
@@ -201,6 +202,7 @@ Vue 后台页面包含：
 - Login：管理员登录后才可以访问线索、开发信、发送和日志 API。
 - Dashboard：查看高分客户、开发信草稿统计。
 - Leads：查看公司线索、官网、国家、产品兴趣、海关匹配、联系人数量和评分，并维护 CRM 跟进状态。
+- Funnel：按销售阶段查看客户看板。
 - Email drafts：
   - 按评分批量生成开发信草稿。
   - 按 `draft`、`approved`、`rejected`、`sent`、`failed` 过滤。
@@ -210,6 +212,8 @@ Vue 后台页面包含：
 - Audit logs：查看登录、CRM 更新、草稿生成/编辑/审核/发送等关键动作。
 - Suppressions：维护 email/domain 级黑名单或退订名单；生成开发信和发送前都会拦截。
 - Lead detail：查看客户联系人、历史开发信和跟进时间线。
+- Customer profile：维护客户类型、等级、城市地址、主营产品、采购量、采购频率、产品匹配度和社媒链接。
+- Contact management：新增、编辑、删除联系人，维护职位、邮箱、电话、WhatsApp、决策人、联系状态和偏好渠道。
 
 默认建议 API 只绑定 `127.0.0.1`。如果要部署到公网，应配置强密码、HTTPS、CORS 白名单，并接入更完整的用户/角色体系。
 
@@ -217,6 +221,18 @@ CRM 跟进状态默认包括：
 
 ```text
 new, contacted, replied, quoted, sample, negotiating, won, lost, invalid
+```
+
+客户类型建议值包括：
+
+```text
+importer, wholesaler, distributor, retailer, ecommerce_seller, brand_owner, repair_channel
+```
+
+联系人状态建议值包括：
+
+```text
+new, contacted, replied, invalid, unsubscribed
 ```
 
 后端会把以下关键操作写入 `audit_logs`：

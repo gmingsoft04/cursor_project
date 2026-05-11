@@ -68,6 +68,8 @@ class WebApi:
             return _json({"username": actor, "role": "admin"})
         if path == "/api/dashboard":
             return self._dashboard()
+        if path == "/api/funnel":
+            return self._funnel()
         if path == "/api/leads":
             return self._leads(query)
         if path.startswith("/api/leads/"):
@@ -91,6 +93,9 @@ class WebApi:
             return self._send_approved(payload, actor=actor)
         if path == "/api/suppressions":
             return self._add_suppression(payload, actor=actor)
+        if path.startswith("/api/leads/") and path.endswith("/contacts"):
+            company_id = int(path.removeprefix("/api/leads/").split("/", 1)[0])
+            return self._create_contact(company_id, payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
             remainder = path.removeprefix("/api/email-drafts/")
             draft_id_text, _, action = remainder.partition("/")
@@ -105,6 +110,11 @@ class WebApi:
         if path.startswith("/api/leads/") and path.endswith("/crm"):
             company_id = int(path.removeprefix("/api/leads/").split("/", 1)[0])
             return self._update_company_crm(company_id, payload, actor=actor)
+        if path.startswith("/api/leads/") and path.endswith("/profile"):
+            company_id = int(path.removeprefix("/api/leads/").split("/", 1)[0])
+            return self._update_company_profile(company_id, payload, actor=actor)
+        if path.startswith("/api/contacts/"):
+            return self._update_contact(_path_int(path, "/api/contacts/"), payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
             return self._edit_email(_path_int(path, "/api/email-drafts/"), payload, actor=actor)
         return _error("Action not found.", status=404)
@@ -120,6 +130,12 @@ class WebApi:
                     entity_type="suppression",
                     entity_id=suppression_id,
                 )
+            return _json({"deleted": True})
+        if path.startswith("/api/contacts/"):
+            contact_id = _path_int(path, "/api/contacts/")
+            with _store(self.db_path) as store:
+                store.delete_contact(contact_id)
+                store.log_action(actor=actor, action="contacts.delete", entity_type="contact", entity_id=contact_id)
             return _json({"deleted": True})
         return _error("Action not found.", status=404)
 
@@ -180,6 +196,16 @@ class WebApi:
         with _store(self.db_path) as store:
             rows = store.list_companies(limit=limit)
         return _json({"items": [_company_payload(row) for row in rows]})
+
+    def _funnel(self) -> ApiResponse:
+        stages = ["new", "contacted", "replied", "quoted", "sample", "negotiating", "won", "lost", "invalid"]
+        grouped = {stage: [] for stage in stages}
+        with _store(self.db_path) as store:
+            rows = store.list_companies(limit=10000)
+        for row in rows:
+            status = row["crm_status"] or "new"
+            grouped.setdefault(status, []).append(_company_payload(row))
+        return _json({"stages": [{"status": status, "items": grouped.get(status, [])} for status in grouped]})
 
     def _lead_detail(self, company_id: int) -> ApiResponse:
         with _store(self.db_path) as store:
@@ -334,6 +360,55 @@ class WebApi:
             return _error("Company not found.", status=404)
         return _json(_company_payload(company, contact_count=contact_count))
 
+    def _update_company_profile(self, company_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        with _store(self.db_path) as store:
+            store.update_company_profile(
+                company_id,
+                city=_empty_string_to_none(payload.get("city")),
+                address=_empty_string_to_none(payload.get("address")),
+                company_type=_empty_string_to_none(payload.get("company_type")),
+                main_products=_empty_string_to_none(payload.get("main_products")),
+                annual_purchase_volume=_empty_string_to_none(payload.get("annual_purchase_volume")),
+                purchase_frequency=_empty_string_to_none(payload.get("purchase_frequency")),
+                customer_grade=_empty_string_to_none(payload.get("customer_grade")),
+                product_fit_score=_optional_int(payload.get("product_fit_score")),
+                social_links=payload.get("social_links") if isinstance(payload.get("social_links"), dict) else {},
+            )
+            store.log_action(
+                actor=actor,
+                action="companies.profile_update",
+                entity_type="company",
+                entity_id=company_id,
+                metadata={"company_type": payload.get("company_type"), "customer_grade": payload.get("customer_grade")},
+            )
+            company = store.get_company(company_id)
+            contact_count = len(store.list_contacts_for_company(company_id))
+        if not company:
+            return _error("Company not found.", status=404)
+        return _json(_company_payload(company, contact_count=contact_count))
+
+    def _create_contact(self, company_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        full_name = str(payload.get("full_name") or "").strip()
+        if not full_name:
+            raise ValueError("full_name is required.")
+        with _store(self.db_path) as store:
+            contact_id = store.create_contact(company_id, **_contact_fields(payload, full_name=full_name))
+            store.log_action(actor=actor, action="contacts.create", entity_type="contact", entity_id=contact_id, metadata={"company_id": company_id})
+            contact = store.get_contact(contact_id)
+        return _json(_contact_payload(contact), status=201)
+
+    def _update_contact(self, contact_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        full_name = str(payload.get("full_name") or "").strip()
+        if not full_name:
+            raise ValueError("full_name is required.")
+        with _store(self.db_path) as store:
+            store.update_contact(contact_id, **_contact_fields(payload, full_name=full_name))
+            store.log_action(actor=actor, action="contacts.update", entity_type="contact", entity_id=contact_id)
+            contact = store.get_contact(contact_id)
+        if not contact:
+            return _error("Contact not found.", status=404)
+        return _json(_contact_payload(contact))
+
     def _generator(self):
         http = JsonHttpClient(self.settings.request_timeout_seconds)
         if self.settings.ai_api_key:
@@ -451,6 +526,15 @@ def _company_payload(row: Any, *, contact_count: int | None = None) -> dict[str,
         "owner": row["owner"],
         "next_follow_up_at": row["next_follow_up_at"],
         "crm_notes": row["crm_notes"],
+        "city": row["city"],
+        "address": row["address"],
+        "company_type": row["company_type"],
+        "main_products": row["main_products"],
+        "annual_purchase_volume": row["annual_purchase_volume"],
+        "purchase_frequency": row["purchase_frequency"],
+        "customer_grade": row["customer_grade"],
+        "product_fit_score": row["product_fit_score"],
+        "social_links": json.loads(row["social_links_json"] or "{}"),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
@@ -478,9 +562,15 @@ def _contact_payload(row: Any) -> dict[str, Any]:
         "phone": row["phone"],
         "linkedin_url": row["linkedin_url"],
         "country": row["country"],
+        "whatsapp": row["whatsapp"],
         "source": row["source"],
         "seniority": row["seniority"],
         "confidence": row["confidence"],
+        "is_decision_maker": bool(row["is_decision_maker"]),
+        "contact_status": row["contact_status"],
+        "preferred_channel": row["preferred_channel"],
+        "last_contacted_at": row["last_contacted_at"],
+        "notes": row["notes"],
         "created_at": row["created_at"],
     }
 
@@ -591,6 +681,29 @@ def _empty_string_to_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    return int(value)
+
+
+def _contact_fields(payload: dict[str, Any], *, full_name: str) -> dict[str, Any]:
+    return {
+        "full_name": full_name,
+        "title": _empty_string_to_none(payload.get("title")),
+        "email": _empty_string_to_none(payload.get("email")),
+        "phone": _empty_string_to_none(payload.get("phone")),
+        "whatsapp": _empty_string_to_none(payload.get("whatsapp")),
+        "linkedin_url": _empty_string_to_none(payload.get("linkedin_url")),
+        "country": _empty_string_to_none(payload.get("country")),
+        "is_decision_maker": bool(payload.get("is_decision_maker", False)),
+        "contact_status": str(payload.get("contact_status") or "new"),
+        "preferred_channel": _empty_string_to_none(payload.get("preferred_channel")),
+        "last_contacted_at": _empty_string_to_none(payload.get("last_contacted_at")),
+        "notes": _empty_string_to_none(payload.get("notes")),
+    }
 
 
 def _path_int(path: str, prefix: str) -> int:

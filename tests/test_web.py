@@ -60,6 +60,39 @@ class WebApiTest(unittest.TestCase):
             self.assertEqual(response.body["company"]["company_name"], "Acme Mobile Accessories")
             self.assertEqual(len(response.body["contacts"]), 1)
 
+            response = app.dispatch(
+                "PUT",
+                "/api/leads/1/profile",
+                b'{"company_type":"distributor","customer_grade":"A","city":"Los Angeles","main_products":"phone accessories","product_fit_score":92,"social_links":{"linkedin":"https://linkedin.example/acme"}}',
+                headers=headers,
+            )
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["company_type"], "distributor")
+            self.assertEqual(response.body["customer_grade"], "A")
+
+            response = app.dispatch(
+                "POST",
+                "/api/leads/1/contacts",
+                b'{"full_name":"John Sourcing","email":"john@acme.example","title":"Sourcing Manager","is_decision_maker":true,"contact_status":"new"}',
+                headers=headers,
+            )
+            self.assertEqual(response.status, 201)
+            contact_id = response.body["id"]
+
+            response = app.dispatch(
+                "PUT",
+                f"/api/contacts/{contact_id}",
+                b'{"full_name":"John Sourcing","email":"john@acme.example","title":"Head of Sourcing","contact_status":"contacted","preferred_channel":"email"}',
+                headers=headers,
+            )
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["title"], "Head of Sourcing")
+
+            response = app.dispatch("GET", "/api/funnel", headers=headers)
+            self.assertEqual(response.status, 200)
+            statuses = [stage["status"] for stage in response.body["stages"]]
+            self.assertIn("contacted", statuses)
+
             response = app.dispatch("PUT", "/api/email-drafts/1", b'{"subject":"Reviewed subject","body":"Reviewed body"}', headers=headers)
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["subject"], "Reviewed subject")
@@ -88,6 +121,10 @@ class WebApiTest(unittest.TestCase):
             self.assertEqual(response.body["items"][0]["value"], "jane@acme.example")
 
             response = app.dispatch("DELETE", f"/api/suppressions/{suppression_id}", headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertTrue(response.body["deleted"])
+
+            response = app.dispatch("DELETE", f"/api/contacts/{contact_id}", headers=headers)
             self.assertEqual(response.status, 200)
             self.assertTrue(response.body["deleted"])
 

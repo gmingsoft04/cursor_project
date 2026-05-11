@@ -57,14 +57,45 @@ export function getLeads(limit = 100) {
   return request(`/api/leads?limit=${limit}`)
 }
 
+export function getFunnel() {
+  return request('/api/funnel')
+}
+
 export function getLeadDetail(id) {
   return request(`/api/leads/${id}`)
+}
+
+export function updateLeadProfile(id, payload) {
+  return request(`/api/leads/${id}/profile`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function updateLeadCrm(id, payload) {
   return request(`/api/leads/${id}/crm`, {
     method: 'PUT',
     body: JSON.stringify(payload),
+  })
+}
+
+export function createContact(companyId, payload) {
+  return request(`/api/leads/${companyId}/contacts`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateContact(id, payload) {
+  return request(`/api/contacts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteContact(id) {
+  return request(`/api/contacts/${id}`, {
+    method: 'DELETE',
   })
 }
 

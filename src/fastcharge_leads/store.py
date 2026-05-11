@@ -112,6 +112,21 @@ class LeadStore:
         self._ensure_column("companies", "owner", "TEXT")
         self._ensure_column("companies", "next_follow_up_at", "TEXT")
         self._ensure_column("companies", "crm_notes", "TEXT")
+        self._ensure_column("companies", "city", "TEXT")
+        self._ensure_column("companies", "address", "TEXT")
+        self._ensure_column("companies", "company_type", "TEXT")
+        self._ensure_column("companies", "main_products", "TEXT")
+        self._ensure_column("companies", "annual_purchase_volume", "TEXT")
+        self._ensure_column("companies", "purchase_frequency", "TEXT")
+        self._ensure_column("companies", "customer_grade", "TEXT")
+        self._ensure_column("companies", "product_fit_score", "INTEGER")
+        self._ensure_column("companies", "social_links_json", "TEXT NOT NULL DEFAULT '{}'")
+        self._ensure_column("contacts", "whatsapp", "TEXT")
+        self._ensure_column("contacts", "is_decision_maker", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("contacts", "contact_status", "TEXT NOT NULL DEFAULT 'new'")
+        self._ensure_column("contacts", "preferred_channel", "TEXT")
+        self._ensure_column("contacts", "last_contacted_at", "TEXT")
+        self._ensure_column("contacts", "notes", "TEXT")
         self._connection.commit()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
@@ -223,6 +238,43 @@ class LeadStore:
         )
         self._connection.commit()
 
+    def update_company_profile(
+        self,
+        company_id: int,
+        *,
+        city: str | None = None,
+        address: str | None = None,
+        company_type: str | None = None,
+        main_products: str | None = None,
+        annual_purchase_volume: str | None = None,
+        purchase_frequency: str | None = None,
+        customer_grade: str | None = None,
+        product_fit_score: int | None = None,
+        social_links: dict | None = None,
+    ) -> None:
+        self._connection.execute(
+            """
+            UPDATE companies
+            SET city = ?, address = ?, company_type = ?, main_products = ?,
+                annual_purchase_volume = ?, purchase_frequency = ?, customer_grade = ?,
+                product_fit_score = ?, social_links_json = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (
+                city,
+                address,
+                company_type,
+                main_products,
+                annual_purchase_volume,
+                purchase_frequency,
+                customer_grade,
+                product_fit_score,
+                json.dumps(social_links or {}, ensure_ascii=False, default=str),
+                company_id,
+            ),
+        )
+        self._connection.commit()
+
     def create_session(self, *, token_hash: str, username: str, role: str, expires_at: str) -> None:
         self._connection.execute(
             """
@@ -294,6 +346,99 @@ class LeadStore:
                 (company_id,),
             )
         )
+
+    def create_contact(
+        self,
+        company_id: int,
+        *,
+        full_name: str,
+        title: str | None = None,
+        email: str | None = None,
+        phone: str | None = None,
+        whatsapp: str | None = None,
+        linkedin_url: str | None = None,
+        country: str | None = None,
+        is_decision_maker: bool = False,
+        contact_status: str = "new",
+        preferred_channel: str | None = None,
+        last_contacted_at: str | None = None,
+        notes: str | None = None,
+    ) -> int:
+        cursor = self._connection.execute(
+            """
+            INSERT INTO contacts (
+                company_id, full_name, title, email, phone, whatsapp, linkedin_url, country,
+                source, is_decision_maker, contact_status, preferred_channel, last_contacted_at, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?)
+            """,
+            (
+                company_id,
+                full_name,
+                title,
+                email,
+                phone,
+                whatsapp,
+                linkedin_url,
+                country,
+                1 if is_decision_maker else 0,
+                contact_status,
+                preferred_channel,
+                last_contacted_at,
+                notes,
+            ),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def get_contact(self, contact_id: int) -> sqlite3.Row | None:
+        return self._connection.execute("SELECT * FROM contacts WHERE id = ?", (contact_id,)).fetchone()
+
+    def update_contact(
+        self,
+        contact_id: int,
+        *,
+        full_name: str,
+        title: str | None = None,
+        email: str | None = None,
+        phone: str | None = None,
+        whatsapp: str | None = None,
+        linkedin_url: str | None = None,
+        country: str | None = None,
+        is_decision_maker: bool = False,
+        contact_status: str = "new",
+        preferred_channel: str | None = None,
+        last_contacted_at: str | None = None,
+        notes: str | None = None,
+    ) -> None:
+        self._connection.execute(
+            """
+            UPDATE contacts
+            SET full_name = ?, title = ?, email = ?, phone = ?, whatsapp = ?, linkedin_url = ?,
+                country = ?, is_decision_maker = ?, contact_status = ?, preferred_channel = ?,
+                last_contacted_at = ?, notes = ?
+            WHERE id = ?
+            """,
+            (
+                full_name,
+                title,
+                email,
+                phone,
+                whatsapp,
+                linkedin_url,
+                country,
+                1 if is_decision_maker else 0,
+                contact_status,
+                preferred_channel,
+                last_contacted_at,
+                notes,
+                contact_id,
+            ),
+        )
+        self._connection.commit()
+
+    def delete_contact(self, contact_id: int) -> None:
+        self._connection.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
+        self._connection.commit()
 
     def list_outreach_targets(self, *, limit: int = 20, min_score: int = 0) -> list[sqlite3.Row]:
         return list(

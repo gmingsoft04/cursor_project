@@ -22,6 +22,7 @@
       </div>
       <button :class="{ active: activeTab === 'dashboard' }" @click="switchTab('dashboard')">Dashboard</button>
       <button :class="{ active: activeTab === 'leads' }" @click="switchTab('leads')">客户线索</button>
+      <button :class="{ active: activeTab === 'funnel' }" @click="switchTab('funnel')">销售漏斗</button>
       <button :class="{ active: activeTab === 'emails' }" @click="switchTab('emails')">开发信审核</button>
       <button :class="{ active: activeTab === 'suppressions' }" @click="switchTab('suppressions')">黑名单/退订</button>
       <button :class="{ active: activeTab === 'audit' }" @click="switchTab('audit')">操作日志</button>
@@ -98,16 +99,73 @@
             <h2>{{ selectedLeadDetail.company.company_name }} 详情</h2>
             <button class="ghost" @click="selectedLeadDetail = null">关闭</button>
           </div>
+          <h3>客户资料</h3>
+          <div class="profile-grid">
+            <label>客户类型
+              <select v-model="selectedLeadDetail.company.company_type">
+                <option value="">未设置</option>
+                <option v-for="type in companyTypes" :key="type" :value="type">{{ type }}</option>
+              </select>
+            </label>
+            <label>客户等级
+              <select v-model="selectedLeadDetail.company.customer_grade">
+                <option value="">未设置</option>
+                <option v-for="grade in customerGrades" :key="grade" :value="grade">{{ grade }}</option>
+              </select>
+            </label>
+            <label>城市 <input v-model="selectedLeadDetail.company.city" /></label>
+            <label>地址 <input v-model="selectedLeadDetail.company.address" /></label>
+            <label>主营产品 <input v-model="selectedLeadDetail.company.main_products" /></label>
+            <label>年采购量 <input v-model="selectedLeadDetail.company.annual_purchase_volume" /></label>
+            <label>采购频率 <input v-model="selectedLeadDetail.company.purchase_frequency" /></label>
+            <label>产品匹配度 <input v-model.number="selectedLeadDetail.company.product_fit_score" type="number" min="0" max="100" /></label>
+            <label>LinkedIn <input v-model="selectedLeadDetail.company.social_links.linkedin" /></label>
+            <label>Facebook <input v-model="selectedLeadDetail.company.social_links.facebook" /></label>
+          </div>
+          <button @click="saveLeadProfile">保存客户资料</button>
+
           <div class="detail-grid">
             <section>
               <h3>联系人</h3>
-              <ul class="plain-list">
-                <li v-for="contact in selectedLeadDetail.contacts" :key="contact.id">
-                  <strong>{{ contact.full_name }}</strong>
-                  <span>{{ contact.title || '' }} · {{ contact.email || '' }} · {{ contact.phone || '' }}</span>
-                </li>
-                <li v-if="!selectedLeadDetail.contacts.length" class="empty">暂无联系人。</li>
-              </ul>
+              <div class="contact-card" v-for="contact in selectedLeadDetail.contacts" :key="contact.id">
+                <div class="profile-grid compact">
+                  <label>姓名 <input v-model="contact.full_name" /></label>
+                  <label>职位 <input v-model="contact.title" /></label>
+                  <label>Email <input v-model="contact.email" /></label>
+                  <label>电话 <input v-model="contact.phone" /></label>
+                  <label>WhatsApp <input v-model="contact.whatsapp" /></label>
+                  <label>状态
+                    <select v-model="contact.contact_status">
+                      <option v-for="status in contactStatuses" :key="status" :value="status">{{ status }}</option>
+                    </select>
+                  </label>
+                  <label>偏好渠道 <input v-model="contact.preferred_channel" /></label>
+                  <label>最近联系 <input v-model="contact.last_contacted_at" placeholder="YYYY-MM-DD" /></label>
+                  <label class="checkbox"><input v-model="contact.is_decision_maker" type="checkbox" /> 决策人</label>
+                  <label>备注 <input v-model="contact.notes" /></label>
+                </div>
+                <div class="row-actions">
+                  <button @click="saveContact(contact)">保存联系人</button>
+                  <button class="danger" @click="removeContact(contact.id)">删除</button>
+                </div>
+              </div>
+              <p v-if="!selectedLeadDetail.contacts.length" class="empty">暂无联系人。</p>
+              <h4>新增联系人</h4>
+              <div class="profile-grid compact">
+                <label>姓名 <input v-model="newContact.full_name" /></label>
+                <label>职位 <input v-model="newContact.title" /></label>
+                <label>Email <input v-model="newContact.email" /></label>
+                <label>电话 <input v-model="newContact.phone" /></label>
+                <label>WhatsApp <input v-model="newContact.whatsapp" /></label>
+                <label>状态
+                  <select v-model="newContact.contact_status">
+                    <option v-for="status in contactStatuses" :key="status" :value="status">{{ status }}</option>
+                  </select>
+                </label>
+                <label class="checkbox"><input v-model="newContact.is_decision_maker" type="checkbox" /> 决策人</label>
+                <label>备注 <input v-model="newContact.notes" /></label>
+              </div>
+              <button @click="addContact">添加联系人</button>
             </section>
             <section>
               <h3>历史开发信</h3>
@@ -130,6 +188,21 @@
             </li>
             <li v-if="!selectedLeadDetail.timeline.length" class="empty">暂无时间线。</li>
           </ul>
+        </div>
+      </section>
+
+      <section v-if="activeTab === 'funnel'" class="stack">
+        <div class="kanban">
+          <section v-for="stage in funnel.stages || []" :key="stage.status" class="kanban-column">
+            <h2>{{ stage.status }} <span>{{ stage.items.length }}</span></h2>
+            <article v-for="lead in stage.items" :key="lead.id" class="kanban-card">
+              <strong>{{ lead.company_name }}</strong>
+              <span>{{ lead.country || 'Unknown' }} · {{ lead.product_interest || 'No product' }}</span>
+              <small>评分 {{ lead.score }} · {{ lead.owner || '未分配' }}</small>
+              <button class="ghost" @click="switchTab('leads'); loadLeadDetail(lead.id)">查看详情</button>
+            </article>
+            <p v-if="!stage.items.length" class="empty">暂无客户。</p>
+          </section>
         </div>
       </section>
 
@@ -263,6 +336,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   approveEmailDraft,
   addSuppression,
+  createContact,
+  deleteContact,
   deleteSuppression,
   generateEmailDrafts,
   getAuditLogs,
@@ -270,6 +345,7 @@ import {
   getDashboard,
   getEmailDraft,
   getEmailDrafts,
+  getFunnel,
   getLeadDetail,
   getLeads,
   getSuppressions,
@@ -278,7 +354,9 @@ import {
   logout,
   rejectEmailDraft,
   sendApprovedDrafts,
+  updateContact,
   updateLeadCrm,
+  updateLeadProfile,
   updateEmailDraft,
 } from './api'
 
@@ -308,11 +386,15 @@ const DataTable = {
 
 const statuses = ['draft', 'approved', 'rejected', 'sent', 'failed']
 const crmStatuses = ['new', 'contacted', 'replied', 'quoted', 'sample', 'negotiating', 'won', 'lost', 'invalid']
+const contactStatuses = ['new', 'contacted', 'replied', 'invalid', 'unsubscribed']
+const companyTypes = ['importer', 'wholesaler', 'distributor', 'retailer', 'ecommerce_seller', 'brand_owner', 'repair_channel']
+const customerGrades = ['A', 'B', 'C', 'D']
 const activeTab = ref('dashboard')
 const message = ref('')
 const error = ref('')
 const user = ref(null)
 const dashboard = ref({})
+const funnel = ref({})
 const leads = ref([])
 const selectedLeadDetail = ref(null)
 const auditLogs = ref([])
@@ -328,9 +410,11 @@ const reviewer = ref('sales-manager')
 const generateForm = reactive({ limit: 20, min_score: 70, language: 'English' })
 const loginForm = reactive({ username: 'admin', password: '' })
 const suppressionForm = reactive({ kind: 'email', value: '', reason: '' })
+const newContact = reactive(emptyContact())
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'leads') return '客户线索'
+  if (activeTab.value === 'funnel') return '销售漏斗'
   if (activeTab.value === 'emails') return '开发信审核'
   if (activeTab.value === 'suppressions') return '黑名单 / 退订'
   if (activeTab.value === 'audit') return '操作日志'
@@ -373,6 +457,7 @@ function switchTab(tab) {
 function refreshCurrent() {
   if (activeTab.value === 'dashboard') return loadDashboard()
   if (activeTab.value === 'leads') return loadLeads()
+  if (activeTab.value === 'funnel') return loadFunnel()
   if (activeTab.value === 'suppressions') return loadSuppressions()
   if (activeTab.value === 'audit') return loadAuditLogs()
   return loadDrafts()
@@ -420,6 +505,12 @@ async function loadLeads() {
   })
 }
 
+async function loadFunnel() {
+  await run(async () => {
+    funnel.value = await getFunnel()
+  })
+}
+
 async function loadAuditLogs() {
   await run(async () => {
     const data = await getAuditLogs(auditLimit.value)
@@ -437,6 +528,7 @@ async function loadSuppressions() {
 async function loadLeadDetail(id) {
   await run(async () => {
     selectedLeadDetail.value = await getLeadDetail(id)
+    selectedLeadDetail.value.company.social_links ||= {}
   })
 }
 
@@ -450,6 +542,58 @@ async function saveLeadCrm(lead) {
     })
     Object.assign(lead, updated)
     notify('CRM 跟进状态已保存')
+  })
+}
+
+async function saveLeadProfile() {
+  if (!selectedLeadDetail.value) return
+  await run(async () => {
+    selectedLeadDetail.value.company = await updateLeadProfile(selectedLeadDetail.value.company.id, selectedLeadDetail.value.company)
+    notify('客户资料已保存')
+    await loadLeads()
+  })
+}
+
+function emptyContact() {
+  return {
+    full_name: '',
+    title: '',
+    email: '',
+    phone: '',
+    whatsapp: '',
+    linkedin_url: '',
+    contact_status: 'new',
+    preferred_channel: '',
+    last_contacted_at: '',
+    notes: '',
+    is_decision_maker: false,
+  }
+}
+
+async function addContact() {
+  if (!selectedLeadDetail.value) return
+  await run(async () => {
+    await createContact(selectedLeadDetail.value.company.id, newContact)
+    Object.assign(newContact, emptyContact())
+    notify('联系人已添加')
+    await loadLeadDetail(selectedLeadDetail.value.company.id)
+  })
+}
+
+async function saveContact(contact) {
+  await run(async () => {
+    const updated = await updateContact(contact.id, contact)
+    Object.assign(contact, updated)
+    notify('联系人已保存')
+  })
+}
+
+async function removeContact(id) {
+  if (!selectedLeadDetail.value) return
+  await run(async () => {
+    await deleteContact(id)
+    notify('联系人已删除')
+    await loadLeadDetail(selectedLeadDetail.value.company.id)
   })
 }
 
