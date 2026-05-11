@@ -18,6 +18,7 @@ from .email_outreach import OutreachWorkflow, format_draft_preview
 from .pipeline import LeadGenerationPipeline
 from .query_builder import DEFAULT_MARKETS, DEFAULT_PRODUCTS, normalize_csv_option
 from .store import LeadStore
+from .web import run_web_server
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -73,6 +74,11 @@ def build_parser() -> argparse.ArgumentParser:
     send.add_argument("--db", help="SQLite database path. Defaults to LEADS_DB_PATH.")
     send.add_argument("--limit", type=int, default=20, help="Maximum approved drafts to send.")
     send.add_argument("--dry-run", action="store_true", help="Show which approved drafts would be sent without using SMTP.")
+
+    web = subparsers.add_parser("web", help="Start the local web dashboard.")
+    web.add_argument("--db", help="SQLite database path. Defaults to LEADS_DB_PATH.")
+    web.add_argument("--host", default="127.0.0.1", help="Host to bind. Defaults to 127.0.0.1.")
+    web.add_argument("--port", type=int, default=8080, help="Port to bind. Defaults to 8080.")
     return parser
 
 
@@ -177,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             store.close()
         print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "web":
+        run_web_server(db_path=db_path, settings=settings, host=args.host, port=args.port)
         return 0
 
     if args.command == "run":
