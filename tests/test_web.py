@@ -48,8 +48,17 @@ class WebApiTest(unittest.TestCase):
             self.assertEqual(response.status, 201)
             self.assertEqual(response.body["created"], 1)
 
+            response = app.dispatch("POST", "/api/email-drafts/generate", b'{"limit":1,"min_score":80,"language":"English"}', headers=headers)
+            self.assertEqual(response.status, 201)
+            self.assertEqual(response.body["created"], 0)
+
             response = app.dispatch("GET", "/api/email-drafts", headers=headers)
             self.assertIn("USB-C PD charger supply", response.body["items"][0]["subject"])
+
+            response = app.dispatch("GET", "/api/leads/1", headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["company"]["company_name"], "Acme Mobile Accessories")
+            self.assertEqual(len(response.body["contacts"]), 1)
 
             response = app.dispatch("PUT", "/api/email-drafts/1", b'{"subject":"Reviewed subject","body":"Reviewed body"}', headers=headers)
             self.assertEqual(response.status, 200)
@@ -70,6 +79,17 @@ class WebApiTest(unittest.TestCase):
             actions = [row["action"] for row in response.body["items"]]
             self.assertIn("companies.crm_update", actions)
             self.assertIn("email_drafts.approve", actions)
+
+            response = app.dispatch("POST", "/api/suppressions", b'{"kind":"email","value":"jane@acme.example","reason":"unsubscribed"}', headers=headers)
+            self.assertEqual(response.status, 201)
+            suppression_id = response.body["id"]
+
+            response = app.dispatch("GET", "/api/suppressions", headers=headers)
+            self.assertEqual(response.body["items"][0]["value"], "jane@acme.example")
+
+            response = app.dispatch("DELETE", f"/api/suppressions/{suppression_id}", headers=headers)
+            self.assertEqual(response.status, 200)
+            self.assertTrue(response.body["deleted"])
 
 
 if __name__ == "__main__":

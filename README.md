@@ -13,6 +13,8 @@ FastCharge Leads 是一个面向外贸业务的 Python 获客系统，聚焦 **�
 - 利用 AI 动态生成开发信草稿，支持预览、人工审核、改写、批准后 SMTP 发送。
 - 提供 Vue3 前端 + Python JSON API 的前后端分离后台，用于查看线索、生成草稿、预览编辑开发信、人工审核和发送。
 - 提供登录鉴权、操作日志和 CRM 跟进状态，便于业务团队协作运营。
+- 支持防重复开发信、黑名单/退订名单、客户详情页和跟进时间线。
+- 提供 Docker / docker-compose 部署文件。
 - 所有外部接口都集中在 `src/fastcharge_leads/clients/`，便于替换实际服务商。
 
 ## 项目结构
@@ -206,6 +208,8 @@ Vue 后台页面包含：
   - 人工审核通过或拒绝。
   - 对已审核通过的草稿执行 dry-run 或真实 SMTP 发送。
 - Audit logs：查看登录、CRM 更新、草稿生成/编辑/审核/发送等关键动作。
+- Suppressions：维护 email/domain 级黑名单或退订名单；生成开发信和发送前都会拦截。
+- Lead detail：查看客户联系人、历史开发信和跟进时间线。
 
 默认建议 API 只绑定 `127.0.0.1`。如果要部署到公网，应配置强密码、HTTPS、CORS 白名单，并接入更完整的用户/角色体系。
 
@@ -222,6 +226,45 @@ new, contacted, replied, quoted, sample, negotiating, won, lost, invalid
 - AI 开发信草稿生成。
 - 开发信编辑、审核通过、拒绝。
 - 已审核开发信 dry-run 或真实发送。
+
+系统会自动避免重复生成开发信：同一联系人如果已有 `draft` 或 `approved` 状态草稿，会在新一轮生成时跳过。黑名单/退订名单支持：
+
+- `email`：精准拦截某个邮箱。
+- `domain`：拦截某个域名下的全部邮箱。
+
+已进入黑名单/退订名单的联系人不会被选入新草稿；如果已有已审核草稿，在真实发送前也会再次拦截并标记失败。
+
+## Docker 部署
+
+先复制并修改 `.env`，至少设置强密码：
+
+```bash
+cp .env.example .env
+```
+
+然后启动：
+
+```bash
+docker compose up --build
+```
+
+访问：
+
+```text
+http://localhost:8080
+```
+
+Compose 包含：
+
+- `api`：Python JSON API，SQLite 数据保存到 Docker volume `leads-data`。
+- `frontend`：Nginx 托管 Vue3 静态文件，并把 `/api/*` 反向代理到 `api:8080`。
+
+生产部署建议：
+
+- 修改 `AUTH_ADMIN_PASSWORD`。
+- 使用 HTTPS 反向代理。
+- 设置 `CORS_ALLOW_ORIGIN` 为真实前端域名。
+- 持久化并备份 `leads-data`。
 
 ## 线索评分逻辑
 

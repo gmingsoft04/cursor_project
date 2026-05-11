@@ -64,6 +64,11 @@ class OutreachWorkflow:
         for draft in drafts:
             draft_id = int(draft["id"])
             processed_ids.append(draft_id)
+            if self.store.is_suppressed_email(str(draft["recipient_email"])):
+                failed += 1
+                if not dry_run:
+                    self.store.mark_email_draft_failed(draft_id, "Recipient is on the suppression list.")
+                continue
             if dry_run:
                 sent += 1
                 continue

@@ -53,6 +53,8 @@ class WebApi:
                 return self._post(path, payload, actor=actor or "anonymous", headers=headers)
             if method == "PUT":
                 return self._put(path, payload, actor=actor or "anonymous")
+            if method == "DELETE":
+                return self._delete(path, actor=actor or "anonymous")
             return _error("Unsupported method.", status=405)
         except ValueError as exc:
             return _error(str(exc), status=400)
@@ -68,8 +70,12 @@ class WebApi:
             return self._dashboard()
         if path == "/api/leads":
             return self._leads(query)
+        if path.startswith("/api/leads/"):
+            return self._lead_detail(_path_int(path, "/api/leads/"))
         if path == "/api/audit-logs":
             return self._audit_logs(query)
+        if path == "/api/suppressions":
+            return self._suppressions(query)
         if path == "/api/email-drafts":
             return self._email_drafts(query)
         if path.startswith("/api/email-drafts/"):
@@ -83,6 +89,8 @@ class WebApi:
             return self._generate_email_drafts(payload, actor=actor)
         if path == "/api/email-drafts/send-approved":
             return self._send_approved(payload, actor=actor)
+        if path == "/api/suppressions":
+            return self._add_suppression(payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
             remainder = path.removeprefix("/api/email-drafts/")
             draft_id_text, _, action = remainder.partition("/")
@@ -99,6 +107,20 @@ class WebApi:
             return self._update_company_crm(company_id, payload, actor=actor)
         if path.startswith("/api/email-drafts/"):
             return self._edit_email(_path_int(path, "/api/email-drafts/"), payload, actor=actor)
+        return _error("Action not found.", status=404)
+
+    def _delete(self, path: str, *, actor: str) -> ApiResponse:
+        if path.startswith("/api/suppressions/"):
+            suppression_id = _path_int(path, "/api/suppressions/")
+            with _store(self.db_path) as store:
+                store.delete_suppression(suppression_id)
+                store.log_action(
+                    actor=actor,
+                    action="suppressions.delete",
+                    entity_type="suppression",
+                    entity_id=suppression_id,
+                )
+            return _json({"deleted": True})
         return _error("Action not found.", status=404)
 
     def _login(self, payload: dict[str, Any]) -> ApiResponse:
@@ -159,11 +181,34 @@ class WebApi:
             rows = store.list_companies(limit=limit)
         return _json({"items": [_company_payload(row) for row in rows]})
 
+    def _lead_detail(self, company_id: int) -> ApiResponse:
+        with _store(self.db_path) as store:
+            company = store.get_company(company_id)
+            if not company:
+                return _error("Company not found.", status=404)
+            contacts = store.list_contacts_for_company(company_id)
+            drafts = store.list_company_email_drafts(company_id)
+            logs = store.list_company_audit_logs(company_id, limit=100)
+        return _json(
+            {
+                "company": _company_payload(company, contact_count=len(contacts)),
+                "contacts": [_contact_payload(row) for row in contacts],
+                "email_drafts": [_draft_payload(row) for row in drafts],
+                "timeline": _timeline_payload(logs, drafts),
+            }
+        )
+
     def _audit_logs(self, query: dict[str, list[str]]) -> ApiResponse:
         limit = _int_query(query, "limit", 100)
         with _store(self.db_path) as store:
             rows = store.list_audit_logs(limit=limit)
         return _json({"items": [_audit_payload(row) for row in rows]})
+
+    def _suppressions(self, query: dict[str, list[str]]) -> ApiResponse:
+        limit = _int_query(query, "limit", 200)
+        with _store(self.db_path) as store:
+            rows = store.list_suppressions(limit=limit)
+        return _json({"items": [_suppression_payload(row) for row in rows]})
 
     def _email_drafts(self, query: dict[str, list[str]]) -> ApiResponse:
         status = _one(query, "status") or None
@@ -242,6 +287,24 @@ class WebApi:
             )
         return _json(result.as_dict())
 
+    def _add_suppression(self, payload: dict[str, Any], *, actor: str) -> ApiResponse:
+        kind = str(payload.get("kind") or "").strip().lower()
+        value = str(payload.get("value") or "").strip()
+        reason = _empty_string_to_none(payload.get("reason"))
+        if not kind or not value:
+            raise ValueError("kind and value are required.")
+        with _store(self.db_path) as store:
+            suppression_id = store.add_suppression(kind=kind, value=value, reason=reason, created_by=actor)
+            store.log_action(
+                actor=actor,
+                action="suppressions.add",
+                entity_type="suppression",
+                entity_id=suppression_id,
+                metadata={"kind": kind, "value": value, "reason": reason},
+            )
+            created = store.get_suppression(suppression_id)
+        return _json(_suppression_payload(created), status=201)
+
     def _update_company_crm(self, company_id: int, payload: dict[str, Any], *, actor: str) -> ApiResponse:
         crm_status = str(payload.get("crm_status") or "").strip()
         if not crm_status:
@@ -319,6 +382,9 @@ def run_web_server(*, db_path: str, settings: Settings, host: str = "127.0.0.1",
                 api.settings.cors_allow_origin,
             )
 
+        def do_DELETE(self) -> None:  # noqa: N802 - standard library handler API.
+            _send(self, api.dispatch("DELETE", self.path, headers=dict(self.headers)), api.settings.cors_allow_origin)
+
         def do_OPTIONS(self) -> None:  # noqa: N802 - standard library handler API.
             _send(self, api.dispatch("OPTIONS", self.path, headers=dict(self.headers)), api.settings.cors_allow_origin)
 
@@ -343,7 +409,7 @@ def _send(handler: BaseHTTPRequestHandler, response: ApiResponse, cors_allow_ori
 def _headers(response: ApiResponse, cors_allow_origin: str) -> dict[str, str]:
     return {
         "Access-Control-Allow-Origin": cors_allow_origin,
-        "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization",
         **(response.headers or {}),
     }
@@ -402,6 +468,34 @@ def _audit_payload(row: Any) -> dict[str, Any]:
     }
 
 
+def _contact_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "company_id": row["company_id"],
+        "full_name": row["full_name"],
+        "title": row["title"],
+        "email": row["email"],
+        "phone": row["phone"],
+        "linkedin_url": row["linkedin_url"],
+        "country": row["country"],
+        "source": row["source"],
+        "seniority": row["seniority"],
+        "confidence": row["confidence"],
+        "created_at": row["created_at"],
+    }
+
+
+def _suppression_payload(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "kind": row["kind"],
+        "value": row["value"],
+        "reason": row["reason"],
+        "created_by": row["created_by"],
+        "created_at": row["created_at"],
+    }
+
+
 def _draft_payload(row: Any, *, include_body: bool = False) -> dict[str, Any]:
     payload = {
         "id": row["id"],
@@ -425,6 +519,31 @@ def _draft_payload(row: Any, *, include_body: bool = False) -> dict[str, Any]:
         payload["body"] = row["body"]
         payload["metadata"] = json.loads(row["metadata_json"] or "{}")
     return payload
+
+
+def _timeline_payload(logs: list[Any], drafts: list[Any]) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    for row in logs:
+        items.append(
+            {
+                "type": "audit",
+                "at": row["created_at"],
+                "title": row["action"],
+                "actor": row["actor"],
+                "metadata": json.loads(row["metadata_json"] or "{}"),
+            }
+        )
+    for row in drafts:
+        items.append(
+            {
+                "type": "email_draft",
+                "at": row["created_at"],
+                "title": f"Email draft {row['status']}",
+                "actor": row["reviewed_by"],
+                "metadata": {"draft_id": row["id"], "subject": row["subject"], "status": row["status"]},
+            }
+        )
+    return sorted(items, key=lambda item: item["at"] or "", reverse=True)
 
 
 def _json(body: dict[str, Any] | list[Any], *, status: int = 200) -> ApiResponse:

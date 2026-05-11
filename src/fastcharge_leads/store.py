@@ -97,6 +97,15 @@ class LeadStore:
                 metadata_json TEXT NOT NULL DEFAULT '{}',
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS suppression_list (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL CHECK(kind IN ('email', 'domain')),
+                value TEXT NOT NULL,
+                reason TEXT,
+                created_by TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(kind, value)
+            );
             """
         )
         self._ensure_column("companies", "crm_status", "TEXT NOT NULL DEFAULT 'new'")
@@ -308,10 +317,54 @@ class LeadStore:
                 WHERE ct.email IS NOT NULL
                   AND ct.email != ''
                   AND c.score >= ?
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM email_drafts d
+                    WHERE d.contact_id = ct.id
+                      AND d.status IN ('draft', 'approved')
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1
+                    FROM suppression_list s
+                    WHERE (s.kind = 'email' AND lower(s.value) = lower(ct.email))
+                       OR (s.kind = 'domain' AND lower(s.value) = lower(substr(ct.email, instr(ct.email, '@') + 1)))
+                  )
                 ORDER BY c.score DESC, c.updated_at DESC, ct.created_at DESC
                 LIMIT ?
                 """,
                 (min_score, limit),
+            )
+        )
+
+    def list_company_email_drafts(self, company_id: int) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT d.*, c.company_name
+                FROM email_drafts d
+                JOIN companies c ON c.id = d.company_id
+                WHERE d.company_id = ?
+                ORDER BY d.created_at DESC
+                """,
+                (company_id,),
+            )
+        )
+
+    def list_company_audit_logs(self, company_id: int, *, limit: int = 100) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT *
+                FROM audit_logs
+                WHERE (entity_type = 'company' AND entity_id = ?)
+                   OR (
+                    entity_type = 'email_draft'
+                    AND entity_id IN (SELECT id FROM email_drafts WHERE company_id = ?)
+                   )
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (company_id, company_id, limit),
             )
         )
 
@@ -423,6 +476,60 @@ class LeadStore:
         )
         self._connection.commit()
 
+    def add_suppression(self, *, kind: str, value: str, reason: str | None = None, created_by: str | None = None) -> int:
+        normalized = _normalize_suppression_value(kind, value)
+        self._connection.execute(
+            """
+            INSERT INTO suppression_list (kind, value, reason, created_by)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(kind, value) DO UPDATE SET
+                reason=excluded.reason,
+                created_by=excluded.created_by
+            """,
+            (kind, normalized, reason, created_by),
+        )
+        self._connection.commit()
+        row = self._connection.execute(
+            "SELECT id FROM suppression_list WHERE kind = ? AND value = ?",
+            (kind, normalized),
+        ).fetchone()
+        return int(row["id"])
+
+    def delete_suppression(self, suppression_id: int) -> None:
+        self._connection.execute("DELETE FROM suppression_list WHERE id = ?", (suppression_id,))
+        self._connection.commit()
+
+    def get_suppression(self, suppression_id: int) -> sqlite3.Row | None:
+        return self._connection.execute("SELECT * FROM suppression_list WHERE id = ?", (suppression_id,)).fetchone()
+
+    def list_suppressions(self, *, limit: int = 200) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT *
+                FROM suppression_list
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        )
+
+    def is_suppressed_email(self, email: str) -> bool:
+        normalized_email = email.strip().lower()
+        domain = normalized_email.split("@", 1)[1] if "@" in normalized_email else ""
+        row = self._connection.execute(
+            """
+            SELECT 1
+            FROM suppression_list
+            WHERE (kind = 'email' AND value = ?)
+               OR (kind = 'domain' AND value = ?)
+            LIMIT 1
+            """,
+            (normalized_email, domain),
+        ).fetchone()
+        return row is not None
+
     def export_companies_csv(self, output_path: str, limit: int = 1000) -> None:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         rows = self.list_companies(limit=limit)
@@ -453,3 +560,13 @@ class LeadStore:
                     row["score"],
                     "; ".join(json.loads(row["signals_json"] or "[]")),
                 ])
+
+
+def _normalize_suppression_value(kind: str, value: str) -> str:
+    kind = kind.strip().lower()
+    normalized = value.strip().lower()
+    if kind not in {"email", "domain"}:
+        raise ValueError("suppression kind must be email or domain")
+    if kind == "domain" and normalized.startswith("@"):
+        normalized = normalized[1:]
+    return normalized

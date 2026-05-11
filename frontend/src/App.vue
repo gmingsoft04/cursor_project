@@ -23,6 +23,7 @@
       <button :class="{ active: activeTab === 'dashboard' }" @click="switchTab('dashboard')">Dashboard</button>
       <button :class="{ active: activeTab === 'leads' }" @click="switchTab('leads')">客户线索</button>
       <button :class="{ active: activeTab === 'emails' }" @click="switchTab('emails')">开发信审核</button>
+      <button :class="{ active: activeTab === 'suppressions' }" @click="switchTab('suppressions')">黑名单/退订</button>
       <button :class="{ active: activeTab === 'audit' }" @click="switchTab('audit')">操作日志</button>
     </aside>
 
@@ -83,11 +84,52 @@
                 <td><input v-model="lead.owner" placeholder="负责人" /></td>
                 <td><input v-model="lead.next_follow_up_at" placeholder="YYYY-MM-DD" /></td>
                 <td><input v-model="lead.crm_notes" placeholder="跟进备注" /></td>
-                <td><button @click="saveLeadCrm(lead)">保存</button></td>
+                <td class="row-actions">
+                  <button @click="saveLeadCrm(lead)">保存</button>
+                  <button class="ghost" @click="loadLeadDetail(lead.id)">详情</button>
+                </td>
               </tr>
               <tr v-if="!leads.length"><td colspan="9" class="empty">暂无线索。</td></tr>
             </tbody>
           </table>
+        </div>
+        <div v-if="selectedLeadDetail" class="panel">
+          <div class="section-heading">
+            <h2>{{ selectedLeadDetail.company.company_name }} 详情</h2>
+            <button class="ghost" @click="selectedLeadDetail = null">关闭</button>
+          </div>
+          <div class="detail-grid">
+            <section>
+              <h3>联系人</h3>
+              <ul class="plain-list">
+                <li v-for="contact in selectedLeadDetail.contacts" :key="contact.id">
+                  <strong>{{ contact.full_name }}</strong>
+                  <span>{{ contact.title || '' }} · {{ contact.email || '' }} · {{ contact.phone || '' }}</span>
+                </li>
+                <li v-if="!selectedLeadDetail.contacts.length" class="empty">暂无联系人。</li>
+              </ul>
+            </section>
+            <section>
+              <h3>历史开发信</h3>
+              <ul class="plain-list">
+                <li v-for="draft in selectedLeadDetail.email_drafts" :key="draft.id">
+                  <strong>#{{ draft.id }} {{ draft.status }}</strong>
+                  <span>{{ draft.subject }}</span>
+                </li>
+                <li v-if="!selectedLeadDetail.email_drafts.length" class="empty">暂无开发信。</li>
+              </ul>
+            </section>
+          </div>
+          <h3>跟进时间线</h3>
+          <ul class="timeline">
+            <li v-for="item in selectedLeadDetail.timeline" :key="`${item.type}-${item.at}-${item.title}`">
+              <time>{{ item.at }}</time>
+              <strong>{{ item.title }}</strong>
+              <span>{{ item.actor || '' }}</span>
+              <code>{{ JSON.stringify(item.metadata) }}</code>
+            </li>
+            <li v-if="!selectedLeadDetail.timeline.length" class="empty">暂无时间线。</li>
+          </ul>
         </div>
       </section>
 
@@ -154,6 +196,40 @@
         </div>
       </section>
 
+      <section v-if="activeTab === 'suppressions'" class="stack">
+        <div class="panel">
+          <h2>新增黑名单 / 退订</h2>
+          <div class="form-grid">
+            <label>类型
+              <select v-model="suppressionForm.kind">
+                <option value="email">email</option>
+                <option value="domain">domain</option>
+              </select>
+            </label>
+            <label>值 <input v-model="suppressionForm.value" placeholder="buyer@example.com 或 example.com" /></label>
+            <label>原因 <input v-model="suppressionForm.reason" placeholder="unsubscribed / bounced / blacklist" /></label>
+            <button @click="createSuppression">添加</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>黑名单 / 退订名单</h2>
+          <table>
+            <thead><tr><th>类型</th><th>值</th><th>原因</th><th>创建人</th><th>时间</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr v-for="item in suppressions" :key="item.id">
+                <td>{{ item.kind }}</td>
+                <td>{{ item.value }}</td>
+                <td>{{ item.reason }}</td>
+                <td>{{ item.created_by }}</td>
+                <td>{{ item.created_at }}</td>
+                <td><button class="danger" @click="removeSuppression(item.id)">删除</button></td>
+              </tr>
+              <tr v-if="!suppressions.length"><td colspan="6" class="empty">暂无黑名单或退订记录。</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section v-if="activeTab === 'audit'" class="stack">
         <div class="panel toolbar">
           <label>显示数量 <input v-model.number="auditLimit" type="number" min="1" max="500" /></label>
@@ -186,13 +262,17 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   approveEmailDraft,
+  addSuppression,
+  deleteSuppression,
   generateEmailDrafts,
   getAuditLogs,
   getCurrentUser,
   getDashboard,
   getEmailDraft,
   getEmailDrafts,
+  getLeadDetail,
   getLeads,
+  getSuppressions,
   getStoredToken,
   login,
   logout,
@@ -234,7 +314,9 @@ const error = ref('')
 const user = ref(null)
 const dashboard = ref({})
 const leads = ref([])
+const selectedLeadDetail = ref(null)
 const auditLogs = ref([])
+const suppressions = ref([])
 const drafts = ref([])
 const draftCounts = ref({})
 const selectedDraft = ref(null)
@@ -245,10 +327,12 @@ const sendLimit = ref(20)
 const reviewer = ref('sales-manager')
 const generateForm = reactive({ limit: 20, min_score: 70, language: 'English' })
 const loginForm = reactive({ username: 'admin', password: '' })
+const suppressionForm = reactive({ kind: 'email', value: '', reason: '' })
 
 const pageTitle = computed(() => {
   if (activeTab.value === 'leads') return '客户线索'
   if (activeTab.value === 'emails') return '开发信审核'
+  if (activeTab.value === 'suppressions') return '黑名单 / 退订'
   if (activeTab.value === 'audit') return '操作日志'
   return 'Dashboard'
 })
@@ -289,6 +373,7 @@ function switchTab(tab) {
 function refreshCurrent() {
   if (activeTab.value === 'dashboard') return loadDashboard()
   if (activeTab.value === 'leads') return loadLeads()
+  if (activeTab.value === 'suppressions') return loadSuppressions()
   if (activeTab.value === 'audit') return loadAuditLogs()
   return loadDrafts()
 }
@@ -342,6 +427,19 @@ async function loadAuditLogs() {
   })
 }
 
+async function loadSuppressions() {
+  await run(async () => {
+    const data = await getSuppressions()
+    suppressions.value = data.items
+  })
+}
+
+async function loadLeadDetail(id) {
+  await run(async () => {
+    selectedLeadDetail.value = await getLeadDetail(id)
+  })
+}
+
 async function saveLeadCrm(lead) {
   await run(async () => {
     const updated = await updateLeadCrm(lead.id, {
@@ -352,6 +450,24 @@ async function saveLeadCrm(lead) {
     })
     Object.assign(lead, updated)
     notify('CRM 跟进状态已保存')
+  })
+}
+
+async function createSuppression() {
+  await run(async () => {
+    await addSuppression(suppressionForm)
+    suppressionForm.value = ''
+    suppressionForm.reason = ''
+    notify('黑名单/退订记录已添加')
+    await loadSuppressions()
+  })
+}
+
+async function removeSuppression(id) {
+  await run(async () => {
+    await deleteSuppression(id)
+    notify('黑名单/退订记录已删除')
+    await loadSuppressions()
   })
 }
 

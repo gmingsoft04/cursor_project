@@ -57,6 +57,10 @@ export function getLeads(limit = 100) {
   return request(`/api/leads?limit=${limit}`)
 }
 
+export function getLeadDetail(id) {
+  return request(`/api/leads/${id}`)
+}
+
 export function updateLeadCrm(id, payload) {
   return request(`/api/leads/${id}/crm`, {
     method: 'PUT',
@@ -66,6 +70,23 @@ export function updateLeadCrm(id, payload) {
 
 export function getAuditLogs(limit = 100) {
   return request(`/api/audit-logs?limit=${limit}`)
+}
+
+export function getSuppressions(limit = 200) {
+  return request(`/api/suppressions?limit=${limit}`)
+}
+
+export function addSuppression(payload) {
+  return request('/api/suppressions', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteSuppression(id) {
+  return request(`/api/suppressions/${id}`, {
+    method: 'DELETE',
+  })
 }
 
 export function getEmailDrafts({ status = '', limit = 50 } = {}) {

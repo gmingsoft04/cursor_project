@@ -37,6 +37,9 @@ class EmailOutreachTest(unittest.TestCase):
             result = workflow.generate_drafts(limit=5, min_score=80, language="English")
             self.assertEqual(result.created, 1)
 
+            duplicate = workflow.generate_drafts(limit=5, min_score=80, language="English")
+            self.assertEqual(duplicate.created, 0)
+
             draft = store.get_email_draft(result.draft_ids[0])
             self.assertIn("Subject:", format_draft_preview(draft))
             self.assertEqual(draft["status"], "draft")
@@ -50,6 +53,24 @@ class EmailOutreachTest(unittest.TestCase):
             self.assertEqual(send_result.sent, 1)
             self.assertEqual(sender.sent[0][0], "jane@acme.example")
             self.assertEqual(store.get_email_draft(result.draft_ids[0])["status"], "sent")
+            store.close()
+
+    def test_suppression_blocks_generation_and_send(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store = LeadStore(str(Path(directory) / "leads.sqlite3"))
+            store.upsert_company(
+                CompanyLead(
+                    company_name="Blocked Buyer",
+                    domain="blocked.example",
+                    product_interest="fast charging cable",
+                    score=90,
+                    contacts=[ContactLead(full_name="Bad Contact", email="bad@blocked.example")],
+                )
+            )
+            store.add_suppression(kind="domain", value="blocked.example", reason="unsubscribed", created_by="qa")
+            workflow = OutreachWorkflow(store=store, generator=LocalTemplateEmailGenerator())
+            self.assertEqual(workflow.generate_drafts(limit=5, min_score=80).created, 0)
+
             store.close()
 
 
