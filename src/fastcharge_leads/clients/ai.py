@@ -83,7 +83,7 @@ class LocalTemplateEmailGenerator(OutreachEmailGenerator):
         product = context.get("product_interest") or "phone fast chargers and fast charging cables"
         country = context.get("country") or "your market"
         signals = context.get("signals") or []
-        signal_line = f" I noticed your business is related to {signals[0]}." if signals else ""
+        signal_line = f" Your public business signals mention {signals[0]}." if signals else ""
         language = str(context.get("language") or "English").lower()
         if "chinese" in language or "中文" in language:
             subject = f"关于{product}的供应合作"
