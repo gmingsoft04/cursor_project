@@ -67,3 +67,17 @@ class CompanyLead:
 
 def normalize_company_name(name: str) -> str:
     return " ".join(name.lower().replace("&", "and").split())
+
+
+@dataclass(slots=True)
+class EmailDraft:
+    company_id: int
+    recipient_email: str
+    subject: str
+    body: str
+    contact_id: int | None = None
+    recipient_name: str | None = None
+    language: str = "English"
+    model: str | None = None
+    status: str = "draft"
+    metadata: dict[str, Any] = field(default_factory=dict)

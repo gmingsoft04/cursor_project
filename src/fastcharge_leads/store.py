@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
-from .models import CompanyLead, ContactLead
+from .models import CompanyLead, ContactLead, EmailDraft
 
 
 class LeadStore:
@@ -16,6 +16,7 @@ class LeadStore:
         self.path = path
         self._connection = sqlite3.connect(path)
         self._connection.row_factory = sqlite3.Row
+        self._connection.execute("PRAGMA foreign_keys = ON")
         self.ensure_schema()
 
     def close(self) -> None:
@@ -58,6 +59,27 @@ class LeadStore:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(company_id, full_name, email, linkedin_url),
                 FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS email_drafts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                company_id INTEGER NOT NULL,
+                contact_id INTEGER,
+                recipient_email TEXT NOT NULL,
+                recipient_name TEXT,
+                subject TEXT NOT NULL,
+                body TEXT NOT NULL,
+                language TEXT NOT NULL DEFAULT 'English',
+                model TEXT,
+                status TEXT NOT NULL DEFAULT 'draft',
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                reviewed_by TEXT,
+                reviewed_at TEXT,
+                sent_at TEXT,
+                error_message TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(company_id) REFERENCES companies(id) ON DELETE CASCADE,
+                FOREIGN KEY(contact_id) REFERENCES contacts(id) ON DELETE SET NULL
             );
             """
         )
@@ -147,6 +169,159 @@ class LeadStore:
                 (limit,),
             )
         )
+
+    def get_company(self, company_id: int) -> sqlite3.Row | None:
+        return self._connection.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
+
+    def list_contacts_for_company(self, company_id: int) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT *
+                FROM contacts
+                WHERE company_id = ?
+                ORDER BY CASE WHEN email IS NULL OR email = '' THEN 1 ELSE 0 END, created_at DESC
+                """,
+                (company_id,),
+            )
+        )
+
+    def list_outreach_targets(self, *, limit: int = 20, min_score: int = 0) -> list[sqlite3.Row]:
+        return list(
+            self._connection.execute(
+                """
+                SELECT
+                    c.id AS company_id,
+                    c.company_name,
+                    c.domain,
+                    c.website,
+                    c.country,
+                    c.product_interest,
+                    c.signals_json,
+                    c.score,
+                    ct.id AS contact_id,
+                    ct.full_name AS recipient_name,
+                    ct.email AS recipient_email,
+                    ct.title AS recipient_title
+                FROM companies c
+                JOIN contacts ct ON ct.company_id = c.id
+                WHERE ct.email IS NOT NULL
+                  AND ct.email != ''
+                  AND c.score >= ?
+                ORDER BY c.score DESC, c.updated_at DESC, ct.created_at DESC
+                LIMIT ?
+                """,
+                (min_score, limit),
+            )
+        )
+
+    def create_email_draft(self, draft: EmailDraft) -> int:
+        cursor = self._connection.execute(
+            """
+            INSERT INTO email_drafts (
+                company_id, contact_id, recipient_email, recipient_name, subject, body,
+                language, model, status, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                draft.company_id,
+                draft.contact_id,
+                draft.recipient_email,
+                draft.recipient_name,
+                draft.subject,
+                draft.body,
+                draft.language,
+                draft.model,
+                draft.status,
+                json.dumps(draft.metadata, ensure_ascii=False, default=str),
+            ),
+        )
+        self._connection.commit()
+        return int(cursor.lastrowid)
+
+    def get_email_draft(self, draft_id: int) -> sqlite3.Row | None:
+        return self._connection.execute(
+            """
+            SELECT d.*, c.company_name
+            FROM email_drafts d
+            JOIN companies c ON c.id = d.company_id
+            WHERE d.id = ?
+            """,
+            (draft_id,),
+        ).fetchone()
+
+    def list_email_drafts(self, *, status: str | None = None, limit: int = 50) -> list[sqlite3.Row]:
+        if status:
+            return list(
+                self._connection.execute(
+                    """
+                    SELECT d.*, c.company_name
+                    FROM email_drafts d
+                    JOIN companies c ON c.id = d.company_id
+                    WHERE d.status = ?
+                    ORDER BY d.created_at DESC
+                    LIMIT ?
+                    """,
+                    (status, limit),
+                )
+            )
+        return list(
+            self._connection.execute(
+                """
+                SELECT d.*, c.company_name
+                FROM email_drafts d
+                JOIN companies c ON c.id = d.company_id
+                ORDER BY d.created_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+        )
+
+    def update_email_draft_content(self, draft_id: int, *, subject: str, body: str) -> None:
+        self._connection.execute(
+            """
+            UPDATE email_drafts
+            SET subject = ?, body = ?, status = 'draft', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (subject, body, draft_id),
+        )
+        self._connection.commit()
+
+    def review_email_draft(self, draft_id: int, *, approved: bool, reviewer: str | None = None) -> None:
+        status = "approved" if approved else "rejected"
+        self._connection.execute(
+            """
+            UPDATE email_drafts
+            SET status = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (status, reviewer, draft_id),
+        )
+        self._connection.commit()
+
+    def mark_email_draft_sent(self, draft_id: int) -> None:
+        self._connection.execute(
+            """
+            UPDATE email_drafts
+            SET status = 'sent', sent_at = CURRENT_TIMESTAMP, error_message = NULL, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (draft_id,),
+        )
+        self._connection.commit()
+
+    def mark_email_draft_failed(self, draft_id: int, error_message: str) -> None:
+        self._connection.execute(
+            """
+            UPDATE email_drafts
+            SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (error_message[:1000], draft_id),
+        )
+        self._connection.commit()
 
     def export_companies_csv(self, output_path: str, limit: int = 1000) -> None:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)

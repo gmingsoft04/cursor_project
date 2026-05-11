@@ -11,6 +11,10 @@ DEFAULT_LINKEDIN_API_BASE = "https://api.linkedin.com/v2"
 DEFAULT_CUSTOMS_IMPORT_ENDPOINT = "/import-records"
 DEFAULT_LEADS_DB_PATH = "fastcharge_leads.sqlite3"
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 20.0
+DEFAULT_AI_API_BASE = "https://api.openai.com/v1"
+DEFAULT_AI_MODEL = "gpt-4o-mini"
+DEFAULT_SMTP_PORT = 587
+DEFAULT_SMTP_USE_TLS = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +29,16 @@ class Settings:
     customs_import_endpoint: str = DEFAULT_CUSTOMS_IMPORT_ENDPOINT
     leads_db_path: str = DEFAULT_LEADS_DB_PATH
     request_timeout_seconds: float = DEFAULT_REQUEST_TIMEOUT_SECONDS
+    ai_api_key: str | None = None
+    ai_api_base: str = DEFAULT_AI_API_BASE
+    ai_model: str = DEFAULT_AI_MODEL
+    smtp_host: str | None = None
+    smtp_port: int = DEFAULT_SMTP_PORT
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
+    smtp_use_tls: bool = DEFAULT_SMTP_USE_TLS
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -40,6 +54,16 @@ class Settings:
             customs_import_endpoint=os.getenv("CUSTOMS_IMPORT_ENDPOINT", DEFAULT_CUSTOMS_IMPORT_ENDPOINT),
             leads_db_path=os.getenv("LEADS_DB_PATH", DEFAULT_LEADS_DB_PATH),
             request_timeout_seconds=float(os.getenv("REQUEST_TIMEOUT_SECONDS", str(DEFAULT_REQUEST_TIMEOUT_SECONDS))),
+            ai_api_key=_empty_to_none(os.getenv("AI_API_KEY")),
+            ai_api_base=os.getenv("AI_API_BASE", DEFAULT_AI_API_BASE),
+            ai_model=os.getenv("AI_MODEL", DEFAULT_AI_MODEL),
+            smtp_host=_empty_to_none(os.getenv("SMTP_HOST")),
+            smtp_port=int(os.getenv("SMTP_PORT", str(DEFAULT_SMTP_PORT))),
+            smtp_username=_empty_to_none(os.getenv("SMTP_USERNAME")),
+            smtp_password=_empty_to_none(os.getenv("SMTP_PASSWORD")),
+            smtp_from_email=_empty_to_none(os.getenv("SMTP_FROM_EMAIL")),
+            smtp_from_name=_empty_to_none(os.getenv("SMTP_FROM_NAME")),
+            smtp_use_tls=_parse_bool(os.getenv("SMTP_USE_TLS"), DEFAULT_SMTP_USE_TLS),
         )
 
 
@@ -63,3 +87,9 @@ def _load_env_file(path: str = ".env") -> None:
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
+
+
+def _parse_bool(value: str | None, default: bool) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
