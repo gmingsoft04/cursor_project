@@ -75,7 +75,7 @@ def build_parser() -> argparse.ArgumentParser:
     send.add_argument("--limit", type=int, default=20, help="Maximum approved drafts to send.")
     send.add_argument("--dry-run", action="store_true", help="Show which approved drafts would be sent without using SMTP.")
 
-    web = subparsers.add_parser("web", help="Start the local web dashboard.")
+    web = subparsers.add_parser("web", help="Start the backend JSON API for the Vue dashboard.")
     web.add_argument("--db", help="SQLite database path. Defaults to LEADS_DB_PATH.")
     web.add_argument("--host", default="127.0.0.1", help="Host to bind. Defaults to 127.0.0.1.")
     web.add_argument("--port", type=int, default=8080, help="Port to bind. Defaults to 8080.")

@@ -5,11 +5,11 @@ from pathlib import Path
 from fastcharge_leads.config import Settings
 from fastcharge_leads.models import CompanyLead, ContactLead
 from fastcharge_leads.store import LeadStore
-from fastcharge_leads.web import WebDashboard
+from fastcharge_leads.web import WebApi
 
 
-class WebDashboardTest(unittest.TestCase):
-    def test_dashboard_email_review_flow(self):
+class WebApiTest(unittest.TestCase):
+    def test_api_email_review_flow(self):
         with tempfile.TemporaryDirectory() as directory:
             db_path = str(Path(directory) / "leads.sqlite3")
             store = LeadStore(db_path)
@@ -26,31 +26,32 @@ class WebDashboardTest(unittest.TestCase):
             )
             store.close()
 
-            app = WebDashboard(db_path=db_path, settings=Settings())
-            response = app.dispatch("GET", "/")
+            app = WebApi(db_path=db_path, settings=Settings())
+            response = app.dispatch("GET", "/api/dashboard")
             self.assertEqual(response.status, 200)
-            self.assertIn("Dashboard", response.body)
-            self.assertIn("Acme Mobile Accessories", response.body)
+            self.assertEqual(response.body["top_leads"][0]["company_name"], "Acme Mobile Accessories")
 
-            response = app.dispatch("POST", "/emails/generate", b"limit=1&min_score=80&language=English")
-            self.assertEqual(response.status, 303)
+            response = app.dispatch("POST", "/api/email-drafts/generate", b'{"limit":1,"min_score":80,"language":"English"}')
+            self.assertEqual(response.status, 201)
+            self.assertEqual(response.body["created"], 1)
 
-            response = app.dispatch("GET", "/emails")
-            self.assertIn("USB-C PD charger supply", response.body)
+            response = app.dispatch("GET", "/api/email-drafts")
+            self.assertIn("USB-C PD charger supply", response.body["items"][0]["subject"])
 
-            response = app.dispatch("POST", "/emails/1/edit", b"subject=Reviewed+subject&body=Reviewed+body")
-            self.assertEqual(response.status, 303)
+            response = app.dispatch("PUT", "/api/email-drafts/1", b'{"subject":"Reviewed subject","body":"Reviewed body"}')
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["subject"], "Reviewed subject")
 
-            response = app.dispatch("GET", "/emails/1")
-            self.assertIn("Reviewed subject", response.body)
-            self.assertIn("Reviewed body", response.body)
+            response = app.dispatch("GET", "/api/email-drafts/1")
+            self.assertEqual(response.body["body"], "Reviewed body")
 
-            response = app.dispatch("POST", "/emails/1/approve", b"reviewer=qa")
-            self.assertEqual(response.status, 303)
+            response = app.dispatch("POST", "/api/email-drafts/1/approve", b'{"reviewer":"qa"}')
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["status"], "approved")
 
-            response = app.dispatch("POST", "/emails/send-approved", b"limit=1&dry_run=1")
-            self.assertEqual(response.status, 303)
-            self.assertIn("Dry-run", response.headers["Location"])
+            response = app.dispatch("POST", "/api/email-drafts/send-approved", b'{"limit":1,"dry_run":true}')
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.body["sent"], 1)
 
 
 if __name__ == "__main__":

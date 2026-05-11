@@ -8,6 +8,10 @@ __pycache__/
 .venv/
 venv/
 
+# Node/Vue
+node_modules/
+frontend/dist/
+
 # Runtime data
 *.db
 *.sqlite
