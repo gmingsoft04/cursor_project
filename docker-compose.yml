@@ -1,0 +1,38 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      LEADS_DB_PATH: /data/fastcharge_leads.sqlite3
+      AUTH_ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME:-admin}
+      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:-change-me}
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-12}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN:-http://localhost:8080}
+      SERPER_API_KEY: ${SERPER_API_KEY:-}
+      APOLLO_API_KEY: ${APOLLO_API_KEY:-}
+      LINKEDIN_ACCESS_TOKEN: ${LINKEDIN_ACCESS_TOKEN:-}
+      CUSTOMS_API_BASE: ${CUSTOMS_API_BASE:-}
+      CUSTOMS_API_KEY: ${CUSTOMS_API_KEY:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-FastCharge Sales}
+    volumes:
+      - leads-data:/data
+    expose:
+      - "8080"
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
+volumes:
+  leads-data:
