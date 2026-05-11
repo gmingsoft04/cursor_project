@@ -28,7 +28,7 @@ class WebApiTest(unittest.TestCase):
 
             app = WebApi(db_path=db_path, settings=Settings(auth_admin_username="admin", auth_admin_password="secret"))
 
-            response = app.dispatch("GET", "/api/dashboard", headers=headers)
+            response = app.dispatch("GET", "/api/dashboard")
             self.assertEqual(response.status, 401)
 
             response = app.dispatch("POST", "/api/auth/login", b'{"username":"admin","password":"secret"}')
@@ -36,7 +36,7 @@ class WebApiTest(unittest.TestCase):
             token = response.body["token"]
             headers = {"Authorization": f"Bearer {token}"}
 
-            response = app.dispatch("GET", "/api/dashboard")
+            response = app.dispatch("GET", "/api/dashboard", headers=headers)
             self.assertEqual(response.status, 200)
             self.assertEqual(response.body["top_leads"][0]["company_name"], "Acme Mobile Accessories")
 
