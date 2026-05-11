@@ -92,8 +92,7 @@ class WebDashboard:
             for row in companies
         )
         empty_row = '<tr><td colspan="5">No leads yet.</td></tr>'
-        body = (
-            _flash(query)
+        body = _flash(query) + (
             f"<section class='cards'>{cards}</section>"
             "<section class='panel'><h2>Top leads</h2>"
             "<table><thead><tr><th>Company</th><th>Country</th><th>Product</th><th>Contacts</th><th>Score</th></tr></thead>"
@@ -112,8 +111,7 @@ class WebDashboard:
             for row in rows
         )
         empty_row = '<tr><td colspan="7">No leads yet.</td></tr>'
-        body = (
-            _flash(query)
+        body = _flash(query) + (
             "<section class='panel'><h2>Lead companies</h2>"
             "<table><thead><tr><th>Company</th><th>Website</th><th>Country</th><th>Product</th>"
             "<th>Customs</th><th>Contacts</th><th>Score</th></tr></thead>"
@@ -138,8 +136,7 @@ class WebDashboard:
             for row in drafts
         )
         empty_row = '<tr><td colspan="6">No email drafts yet.</td></tr>'
-        body = (
-            _flash(query)
+        body = _flash(query) + (
             "<section class='panel'><h2>Generate outreach drafts</h2>"
             "<form method='post' action='/emails/generate' class='inline-form'>"
             "<label>Limit <input name='limit' type='number' value='20' min='1' max='200'></label>"
@@ -162,8 +159,7 @@ class WebDashboard:
             draft = store.get_email_draft(draft_id)
         if not draft:
             return self._page("Draft not found", "<p>Draft not found.</p>", status=404)
-        body = (
-            _flash(query)
+        body = _flash(query) + (
             "<section class='panel'>"
             f"<h2>Draft #{draft['id']} <span class='status'>{_e(draft['status'])}</span></h2>"
             f"<p><strong>Company:</strong> {_e(draft['company_name'])}</p>"
