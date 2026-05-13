@@ -22,8 +22,14 @@ mvn -pl ruoyi-admin -am spring-boot:run
 ### 主要接口
 
 - `POST /auth/login`：获取 JWT。
-- `GET /biz/demo/list?pageNum=1&pageSize=10`：分页列表（需 `Authorization: Bearer <token>`）。
-- `GET /biz/demo/{id}`、`POST /biz/demo`、`PUT /biz/demo`、`DELETE /biz/demo/{id}`：演示 CRUD。
+- `GET /biz/demo/list`：分页列表（需 `Authorization: Bearer <token>`）；**未传 `pageNum`/`pageSize` 时默认第 1 页、每页 10 条**（单页最大 100），非法分页参数返回 **HTTP 400**。
+- `GET /biz/demo/{id}`、`POST /biz/demo`、`PUT /biz/demo`、`DELETE /biz/demo/{id}`：演示 CRUD；`{id}` 仅数字；详情/删除在记录不存在时返回 **HTTP 404** 与业务文案。
+
+### 安全与跨域
+
+- **H2 Console**：仅在 **`spring.profiles.active` 含 `dev`** 时放行 `/h2-console/**`；生产勿启用 `dev`。
+- **CORS**：`ruoyi.web.cors-allowed-origins` 为空时，通配来源且 **`Access-Control-Allow-Credentials=false`**（适合仅用 `Authorization` 头传 JWT）。生产可配置为具体前端域名并开启凭证。
+- **Clickjacking**：非 `dev` 使用 `X-Frame-Options: SAMEORIGIN`；`dev` 下为兼容 H2 控制台放宽 frame 限制。
 
 ### MySQL
 
@@ -35,13 +41,14 @@ mvn -pl ruoyi-admin -am spring-boot:run
 
 - `ruoyi.jwt.secret`：JWT 密钥原文（内部 SHA-256 派生为 HMAC 密钥，**生产务必修改**）。
 - `ruoyi.jwt.expire-minutes`：令牌有效期（分钟）。
+- `ruoyi.web.cors-allowed-origins`：跨域来源白名单；为空则通配且不携带凭证（见上文）。
 
 ## 模块说明
 
 | 模块 | 说明 |
 | --- | --- |
-| `ruoyi-common` | `AjaxResult`、`TableDataInfo`、实体基类、`TenantContext`、`LoginUser`、`SecurityUtils` 等 |
-| `ruoyi-framework` | Security、JWT 过滤器、全局异常、`BaseController`、登录服务 |
+| `ruoyi-common` | `AjaxResult`、`TableDataInfo`、实体基类、`TenantContext`（可选扩展）、`LoginUser`、`SecurityUtils` 等 |
+| `ruoyi-framework` | Security、JWT、分页清理过滤器、`TablePageSupport`、全局异常、`BaseController`、登录服务 |
 | `ruoyi-system` | 租户/用户/演示业务 Mapper + XML + Service |
 | `ruoyi-admin` | 启动类、对外 Controller、配置文件与初始化 SQL |
 

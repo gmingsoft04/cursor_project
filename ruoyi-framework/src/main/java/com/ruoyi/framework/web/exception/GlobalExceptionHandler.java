@@ -9,6 +9,7 @@ import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * 全局异常处理（若依风格 AjaxResult）。
@@ -37,7 +38,12 @@ public class GlobalExceptionHandler {
                 msg = fe.getDefaultMessage() != null ? fe.getDefaultMessage() : msg;
             }
         }
-        return AjaxResult.error(HttpStatus.ERROR, msg);
+        return AjaxResult.error(HttpStatus.BAD_REQUEST, msg);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public AjaxResult handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return AjaxResult.error(HttpStatus.BAD_REQUEST, "路径或请求参数类型错误");
     }
 
     @ExceptionHandler(Exception.class)

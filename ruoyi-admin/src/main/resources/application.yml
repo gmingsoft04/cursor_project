@@ -21,3 +21,6 @@ ruoyi:
   jwt:
     secret: ChangeMeRuoyiJwtSecretKeyMustBeLongEnoughForDevelopmentUseOnly
     expire-minutes: 120
+  web:
+    # 为空：CORS 使用通配来源且不携带凭证（适合 Authorization 头传 JWT）。生产可改为具体前端域名列表并携带凭证。
+    cors-allowed-origins: []

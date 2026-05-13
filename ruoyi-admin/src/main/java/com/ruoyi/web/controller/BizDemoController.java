@@ -1,7 +1,9 @@
 package com.ruoyi.web.controller;
 
+import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
+import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.framework.web.core.BaseController;
 import com.ruoyi.system.domain.BizDemo;
 import com.ruoyi.system.service.IBizDemoService;
@@ -39,9 +41,13 @@ public class BizDemoController extends BaseController {
     }
 
     @PreAuthorize("hasAuthority('biz:demo:query')")
-    @GetMapping("/{id}")
+    @GetMapping("/{id:\\d+}")
     public AjaxResult get(@PathVariable Long id) {
-        return AjaxResult.success(bizDemoService.selectById(id));
+        BizDemo row = bizDemoService.selectById(id);
+        if (row == null) {
+            throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或无权访问");
+        }
+        return AjaxResult.success(row);
     }
 
     @PreAuthorize("hasAuthority('biz:demo:add')")
@@ -57,7 +63,7 @@ public class BizDemoController extends BaseController {
     }
 
     @PreAuthorize("hasAuthority('biz:demo:remove')")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     public AjaxResult remove(@PathVariable Long id) {
         return toAjax(bizDemoService.deleteById(id));
     }

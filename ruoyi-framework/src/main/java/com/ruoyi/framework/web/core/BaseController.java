@@ -1,11 +1,9 @@
 package com.ruoyi.framework.web.core;
 
-import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
-import com.ruoyi.framework.web.utils.ServletUtils;
-import org.apache.commons.lang3.StringUtils;
+import com.ruoyi.framework.web.page.TablePageSupport;
 
 import java.util.List;
 
@@ -15,13 +13,7 @@ import java.util.List;
 public class BaseController {
 
     protected void startPage() {
-        String pageNumStr = ServletUtils.getParameter("pageNum");
-        String pageSizeStr = ServletUtils.getParameter("pageSize");
-        if (StringUtils.isNotEmpty(pageNumStr) && StringUtils.isNotEmpty(pageSizeStr)) {
-            int pageNum = Integer.parseInt(pageNumStr);
-            int pageSize = Integer.parseInt(pageSizeStr);
-            PageHelper.startPage(pageNum, pageSize);
-        }
+        TablePageSupport.startPage();
     }
 
     protected TableDataInfo getDataTable(List<?> list) {

@@ -1,5 +1,6 @@
 package com.ruoyi.system.service.impl;
 
+import com.ruoyi.common.constant.HttpStatus;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.domain.BizDemo;
@@ -53,13 +54,17 @@ public class BizDemoServiceImpl implements IBizDemoService {
         row.setTenantId(tenantId);
         BizDemo existing = bizDemoMapper.selectById(row.getId(), tenantId);
         if (existing == null) {
-            throw new ServiceException("记录不存在或无权访问");
+            throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或无权访问");
         }
         return bizDemoMapper.updateById(row);
     }
 
     @Override
     public int deleteById(Long id) {
-        return bizDemoMapper.deleteById(id, requireTenantId());
+        int rows = bizDemoMapper.deleteById(id, requireTenantId());
+        if (rows == 0) {
+            throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或已删除");
+        }
+        return rows;
     }
 }

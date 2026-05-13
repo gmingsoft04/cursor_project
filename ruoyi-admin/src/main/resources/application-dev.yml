@@ -16,3 +16,9 @@ spring:
 
 pagehelper:
   helper-dialect: h2
+
+# 若前端需携带 Cookie 跨域，可配置白名单并启用凭证（与 ruoyi.web.cors-allowed-origins 对应）：
+# ruoyi:
+#   web:
+#     cors-allowed-origins:
+#       - http://localhost:5173
