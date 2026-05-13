@@ -60,7 +60,8 @@ public class SecurityConfig {
                     if (environment.acceptsProfiles(Profiles.of("dev"))) {
                         headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::disable);
                     } else {
-                        headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin);
+                        headers.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin)
+                                .contentTypeOptions(Customizer.withDefaults());
                     }
                 })
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -10,6 +10,8 @@
 - **登录**：`POST /auth/login`，请求体为 `tenantCode` + `username` + `password`，返回 `accessToken`（JWT 内含 `tenantId` 与权限标识）。
 - **数据隔离**：演示业务表 `biz_demo` 全量 SQL 带 `tenant_id`；`IBizDemoService` 从当前登录用户解析租户，禁止跨租户读写。
 - **权限**：`RolePermissionRegistry` 演示「角色 → 权限字符串」映射；接口使用 `@PreAuthorize("hasAuthority('...')")`（生产可改为落库 RBAC）。
+- **可观测**：`requestId` / `tenantId` / `userId` 写入 **SLF4J MDC**，控制台日志带关联字段；`AuditLogAspect` 对 Controller 统计耗时，**超过 1s 打 WARN**（不记录方法参数，避免密码进日志）。
+- **登录限流**：按 **客户端 IP** 滑动窗口限制 `/auth/login` 调用频率（进程内；多实例需网关或 Redis）。
 
 ## 快速开始
 
@@ -29,7 +31,7 @@ mvn -pl ruoyi-admin -am spring-boot:run
 
 - **H2 Console**：仅在 **`spring.profiles.active` 含 `dev`** 时放行 `/h2-console/**`；生产勿启用 `dev`。
 - **CORS**：`ruoyi.web.cors-allowed-origins` 为空时，通配来源且 **`Access-Control-Allow-Credentials=false`**（适合仅用 `Authorization` 头传 JWT）。生产可配置为具体前端域名并开启凭证。
-- **Clickjacking**：非 `dev` 使用 `X-Frame-Options: SAMEORIGIN`；`dev` 下为兼容 H2 控制台放宽 frame 限制。
+- **Clickjacking**：非 `dev` 使用 `X-Frame-Options: SAMEORIGIN` 并开启 **`X-Content-Type-Options: nosniff`**；`dev` 下为兼容 H2 控制台放宽 frame 限制。
 
 ### MySQL
 
@@ -42,13 +44,14 @@ mvn -pl ruoyi-admin -am spring-boot:run
 - `ruoyi.jwt.secret`：JWT 密钥原文（内部 SHA-256 派生为 HMAC 密钥，**生产务必修改**）。
 - `ruoyi.jwt.expire-minutes`：令牌有效期（分钟）。
 - `ruoyi.web.cors-allowed-origins`：跨域来源白名单；为空则通配且不携带凭证（见上文）。
+- `ruoyi.web.login-max-requests-per-minute`：每 IP 每分钟登录接口上限；`≤0` 关闭限流。
 
 ## 模块说明
 
 | 模块 | 说明 |
 | --- | --- |
 | `ruoyi-common` | `AjaxResult`、`TableDataInfo`、实体基类、`TenantContext`（可选扩展）、`LoginUser`、`SecurityUtils` 等 |
-| `ruoyi-framework` | Security、JWT、分页清理过滤器、`TablePageSupport`、全局异常、`BaseController`、登录服务 |
+| `ruoyi-framework` | Security、JWT、`RequestLifecycleFilter`（MDC + PageHelper 清理）、`PrincipalMdcFilter`、`TablePageSupport`、`AuditLogAspect`、登录限流、全局异常、`BaseController`、登录服务 |
 | `ruoyi-system` | 租户/用户/演示业务 Mapper + XML + Service |
 | `ruoyi-admin` | 启动类、对外 Controller、配置文件与初始化 SQL |
 

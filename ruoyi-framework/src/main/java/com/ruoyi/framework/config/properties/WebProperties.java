@@ -23,4 +23,17 @@ public class WebProperties {
     public void setCorsAllowedOrigins(List<String> corsAllowedOrigins) {
         this.corsAllowedOrigins = corsAllowedOrigins != null ? corsAllowedOrigins : new ArrayList<>();
     }
+
+    /**
+     * 同一客户端 IP 每分钟允许调用登录接口的最大次数（进程内限流）。≤0 表示关闭。
+     */
+    private int loginMaxRequestsPerMinute = 60;
+
+    public int getLoginMaxRequestsPerMinute() {
+        return loginMaxRequestsPerMinute;
+    }
+
+    public void setLoginMaxRequestsPerMinute(int loginMaxRequestsPerMinute) {
+        this.loginMaxRequestsPerMinute = loginMaxRequestsPerMinute;
+    }
 }

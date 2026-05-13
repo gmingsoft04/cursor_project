@@ -43,20 +43,33 @@ public class BizDemoServiceImpl implements IBizDemoService {
 
     @Override
     public int insert(BizDemo row) {
+        validateForWrite(row);
         Long tenantId = requireTenantId();
         row.setTenantId(tenantId);
-        return bizDemoMapper.insert(row);
+        int rows = bizDemoMapper.insert(row);
+        if (rows == 0) {
+            throw new ServiceException(HttpStatus.ERROR, "写入失败，请重试");
+        }
+        return rows;
     }
 
     @Override
     public int update(BizDemo row) {
+        if (row == null || row.getId() == null) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "id 不能为空");
+        }
+        validateForWrite(row);
         Long tenantId = requireTenantId();
         row.setTenantId(tenantId);
         BizDemo existing = bizDemoMapper.selectById(row.getId(), tenantId);
         if (existing == null) {
             throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或无权访问");
         }
-        return bizDemoMapper.updateById(row);
+        int rows = bizDemoMapper.updateById(row);
+        if (rows == 0) {
+            throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或数据未变更");
+        }
+        return rows;
     }
 
     @Override
@@ -66,5 +79,20 @@ public class BizDemoServiceImpl implements IBizDemoService {
             throw new ServiceException(HttpStatus.NOT_FOUND, "记录不存在或已删除");
         }
         return rows;
+    }
+
+    private void validateForWrite(BizDemo row) {
+        if (row == null) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        if (row.getName() == null || row.getName().isBlank()) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "名称不能为空");
+        }
+        if (row.getName().length() > 200) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "名称长度不能超过 200");
+        }
+        if (row.getAmount() != null && row.getAmount().signum() < 0) {
+            throw new ServiceException(HttpStatus.BAD_REQUEST, "金额不能为负数");
+        }
     }
 }

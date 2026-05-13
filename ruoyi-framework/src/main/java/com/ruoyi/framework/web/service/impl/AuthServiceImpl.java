@@ -5,8 +5,10 @@ import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.core.domain.model.request.LoginBody;
 import com.ruoyi.framework.config.properties.JwtProperties;
 import com.ruoyi.framework.security.JwtTokenService;
+import com.ruoyi.framework.security.LoginRateLimiter;
 import com.ruoyi.framework.security.RolePermissionRegistry;
 import com.ruoyi.framework.web.service.IAuthService;
+import com.ruoyi.framework.web.util.ClientIpUtils;
 import com.ruoyi.system.domain.SysTenant;
 import com.ruoyi.system.domain.SysUser;
 import com.ruoyi.system.mapper.SysTenantMapper;
@@ -14,6 +16,8 @@ import com.ruoyi.system.mapper.SysUserMapper;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -30,23 +34,27 @@ public class AuthServiceImpl implements IAuthService {
     private final JwtTokenService jwtTokenService;
     private final JwtProperties jwtProperties;
     private final RolePermissionRegistry rolePermissionRegistry;
+    private final LoginRateLimiter loginRateLimiter;
 
     public AuthServiceImpl(SysTenantMapper tenantMapper,
                            SysUserMapper userMapper,
                            PasswordEncoder passwordEncoder,
                            JwtTokenService jwtTokenService,
                            JwtProperties jwtProperties,
-                           RolePermissionRegistry rolePermissionRegistry) {
+                           RolePermissionRegistry rolePermissionRegistry,
+                           LoginRateLimiter loginRateLimiter) {
         this.tenantMapper = tenantMapper;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtTokenService = jwtTokenService;
         this.jwtProperties = jwtProperties;
         this.rolePermissionRegistry = rolePermissionRegistry;
+        this.loginRateLimiter = loginRateLimiter;
     }
 
     @Override
     public Map<String, Object> login(LoginBody body) {
+        loginRateLimiter.checkAndRecord(resolveClientIp());
         SysTenant tenant = tenantMapper.selectByTenantCode(body.getTenantCode());
         if (tenant == null) {
             throw new ServiceException("租户不存在");
@@ -98,5 +106,13 @@ public class AuthServiceImpl implements IAuthService {
         }
         lu.setAuthorities(authorities);
         return lu;
+    }
+
+    private static String resolveClientIp() {
+        var attrs = RequestContextHolder.getRequestAttributes();
+        if (attrs instanceof ServletRequestAttributes servletRequestAttributes) {
+            return ClientIpUtils.resolve(servletRequestAttributes.getRequest());
+        }
+        return "";
     }
 }

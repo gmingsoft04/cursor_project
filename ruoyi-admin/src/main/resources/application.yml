@@ -24,3 +24,11 @@ ruoyi:
   web:
     # 为空：CORS 使用通配来源且不携带凭证（适合 Authorization 头传 JWT）。生产可改为具体前端域名列表并携带凭证。
     cors-allowed-origins: []
+    # 同一 IP 每分钟最多调用登录接口次数（进程内限流）；≤0 关闭。多实例请改网关/Redis 限流。
+    login-max-requests-per-minute: 60
+
+logging:
+  level:
+    com.ruoyi: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-}] [%X{tenantId:-}/%X{userId:-}] %logger{40} - %msg%n"
