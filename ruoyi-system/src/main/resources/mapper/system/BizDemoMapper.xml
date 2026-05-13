@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.BizDemoMapper">
+
+    <resultMap id="BizDemoResult" type="com.ruoyi.system.domain.BizDemo">
+        <id property="id" column="id"/>
+        <result property="tenantId" column="tenant_id"/>
+        <result property="name" column="name"/>
+        <result property="amount" column="amount"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <select id="selectList" resultMap="BizDemoResult">
+        SELECT id, tenant_id, name, amount, create_time, update_time
+        FROM biz_demo
+        WHERE tenant_id = #{tenantId}
+        <if test="name != null and name != ''">
+            AND name LIKE CONCAT('%', #{name}, '%')
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <select id="selectById" resultMap="BizDemoResult">
+        SELECT id, tenant_id, name, amount, create_time, update_time
+        FROM biz_demo
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO biz_demo (tenant_id, name, amount, create_time, update_time)
+        VALUES (#{tenantId}, #{name}, #{amount}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="updateById">
+        UPDATE biz_demo
+        SET name = #{name},
+            amount = #{amount},
+            update_time = CURRENT_TIMESTAMP
+        WHERE id = #{id}
+          AND tenant_id = #{tenantId}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM biz_demo WHERE id = #{id} AND tenant_id = #{tenantId}
+    </delete>
+</mapper>

@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: universal-saas
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+
+mybatis:
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  type-aliases-package: com.ruoyi.**.domain
+  configuration:
+    map-underscore-to-camel-case: true
+
+pagehelper:
+  reasonable: true
+  support-methods-arguments: true
+
+ruoyi:
+  jwt:
+    secret: ChangeMeRuoyiJwtSecretKeyMustBeLongEnoughForDevelopmentUseOnly
+    expire-minutes: 120
