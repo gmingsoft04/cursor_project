@@ -11,7 +11,7 @@
 - **数据隔离**：演示业务表 `biz_demo` 全量 SQL 带 `tenant_id`；`IBizDemoService` 从当前登录用户解析租户，禁止跨租户读写。
 - **权限**：`RolePermissionRegistry` 演示「角色 → 权限字符串」映射；接口使用 `@PreAuthorize("hasAuthority('...')")`（生产可改为落库 RBAC）。
 - **可观测**：`requestId` / `tenantId` / `userId` 写入 **SLF4J MDC**，控制台日志带关联字段；`AuditLogAspect` 对 Controller 统计耗时，**超过 1s 打 WARN**（不记录方法参数，避免密码进日志）。
-- **登录限流**：按 **客户端 IP** 滑动窗口限制 `/auth/login` 调用频率（进程内；多实例需网关或 Redis）。
+- **登录限流**：按 **客户端 IP** 滑动窗口限制 `/auth/login`（超限 **429**）；实现为 **Caffeine**（`maximumSize` + `expireAfterAccess`），避免无限堆积 IP 状态。多实例仍建议网关或 Redis。
 
 ## 快速开始
 
@@ -45,6 +45,8 @@ mvn -pl ruoyi-admin -am spring-boot:run
 - `ruoyi.jwt.expire-minutes`：令牌有效期（分钟）。
 - `ruoyi.web.cors-allowed-origins`：跨域来源白名单；为空则通配且不携带凭证（见上文）。
 - `ruoyi.web.login-max-requests-per-minute`：每 IP 每分钟登录接口上限；`≤0` 关闭限流。
+- `ruoyi.web.login-rate-limiter-max-entries`：登录限流 Caffeine 最大条目数（不同 IP）。
+- `ruoyi.web.login-rate-limiter-expire-after-access-minutes`：某 IP 无登录尝试多久后淘汰其限流状态。
 
 ## 模块说明
 

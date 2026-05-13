@@ -26,6 +26,9 @@ ruoyi:
     cors-allowed-origins: []
     # 同一 IP 每分钟最多调用登录接口次数（进程内限流）；≤0 关闭。多实例请改网关/Redis 限流。
     login-max-requests-per-minute: 60
+    # 登录限流 Caffeine：最多跟踪的 IP 条目数；某 IP 无访问多久后淘汰其限流状态
+    login-rate-limiter-max-entries: 20000
+    login-rate-limiter-expire-after-access-minutes: 10
 
 logging:
   level:

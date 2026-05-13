@@ -36,4 +36,30 @@ public class WebProperties {
     public void setLoginMaxRequestsPerMinute(int loginMaxRequestsPerMinute) {
         this.loginMaxRequestsPerMinute = loginMaxRequestsPerMinute;
     }
+
+    /**
+     * 登录限流跟踪的最大 IP（缓存条目）数量，超出后按 Caffeine 策略淘汰。
+     */
+    private int loginRateLimiterMaxEntries = 20_000;
+
+    /**
+     * 某 IP 在多少分钟内无登录请求后，淘汰其限流状态（与 Caffeine expireAfterAccess 对齐）。
+     */
+    private int loginRateLimiterExpireAfterAccessMinutes = 10;
+
+    public int getLoginRateLimiterMaxEntries() {
+        return loginRateLimiterMaxEntries;
+    }
+
+    public void setLoginRateLimiterMaxEntries(int loginRateLimiterMaxEntries) {
+        this.loginRateLimiterMaxEntries = loginRateLimiterMaxEntries;
+    }
+
+    public int getLoginRateLimiterExpireAfterAccessMinutes() {
+        return loginRateLimiterExpireAfterAccessMinutes;
+    }
+
+    public void setLoginRateLimiterExpireAfterAccessMinutes(int loginRateLimiterExpireAfterAccessMinutes) {
+        this.loginRateLimiterExpireAfterAccessMinutes = loginRateLimiterExpireAfterAccessMinutes;
+    }
 }
