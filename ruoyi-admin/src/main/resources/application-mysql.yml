@@ -1,0 +1,11 @@
+# 示例：MySQL 8 + 手工执行 sql/mysql/schema.sql 初始化后使用
+# 启动：java -jar app.jar --spring.profiles.active=mysql
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/universal_saas?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: root
+    password: root
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+pagehelper:
+  helper-dialect: mysql
